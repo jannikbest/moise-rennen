@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JSON Daten Anzeige</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>JSON Daten Anzeige</h1>
+            <p>Verbunden mit Webserver für Live-Daten</p>
+        </header>
+        
+        <div class="controls">
+            <button id="fetchBtn" class="btn btn-primary">Verbinden</button>
+            <button id="autoFetchBtn" class="btn btn-secondary">Auto-Reconnect</button>
+            <input type="text" id="serverUrl" placeholder="WebSocket Server URL" value="ws://localhost:8765" class="input">
+        </div>
+        
+        <div class="status">
+            <div id="connectionStatus" class="status-indicator">
+                <span class="status-dot"></span>
+                <span id="statusText">Nicht verbunden</span>
+            </div>
+        </div>
+        
+        <div class="content">
+            <div class="data-section">
+                <h2>Live Game-Daten</h2>
+                <div id="dataDisplay" class="data-display">
+                    <div class="placeholder">Klicken Sie auf "Verbinden" um WebSocket-Daten zu empfangen</div>
+                </div>
+            </div>
+            
+            <div class="raw-section">
+                <h2>Raw JSON</h2>
+                <pre id="rawJson" class="raw-json">Keine Daten verfügbar</pre>
+            </div>
+        </div>
+        
+        <div class="error-section">
+            <div id="errorDisplay" class="error-display hidden"></div>
+        </div>
+    </div>
+    
+    <script src="script.js"></script>
+</body>
+</html> 

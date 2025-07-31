@@ -1,0 +1,27 @@
+{
+  "mice": {
+    "count": 4,
+    "max_id": 4
+  },
+  "controllers": [
+    {
+      "id": 1,
+      "name": "Controller 1",
+      "serial_port": "/dev/tty.usbserial-0001",
+      "baud_rate": 115200,
+      "timeout": 0.01
+    },
+    {
+      "id": 2,
+      "name": "Controller 2", 
+      "serial_port": "/dev/usbserial-6",
+      "baud_rate": 115200,
+      "timeout": 0.01
+    }
+  ],
+  "websocket": {
+    "enabled": true,
+    "host": "localhost",
+    "port": 8765
+  }
+} 
