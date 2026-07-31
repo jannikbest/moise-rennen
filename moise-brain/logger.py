@@ -3,6 +3,7 @@
 Logger-Modul für Moise-Brain
 """
 import logging
+import os
 from datetime import datetime
 
 
@@ -11,6 +12,11 @@ def setup_logging():
     # Log-Datei mit Zeitstempel im log-Ordner
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_file = f"log/moise_brain_{timestamp}.log"
+    
+    # Log-Ordner erstellen, falls er nicht existiert
+    log_dir = os.path.dirname(log_file)
+    if log_dir and not os.path.exists(log_dir):
+        os.makedirs(log_dir)
     
     # Logging konfigurieren
     logging.basicConfig(

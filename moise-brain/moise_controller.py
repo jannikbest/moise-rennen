@@ -1,139 +1,234 @@
 #!/usr/bin/env python3
-"""
-Moise-Controller - Serielle Schnittstelle für den Controller
-"""
-import platform
+"""Moise controller — serial bridge for one ESP32 (1–2 local lanes)."""
+import logging
+import time
 from enum import Enum
 from serial_interface import SerialInterface
 
 
 class ControllerState(Enum):
-    """Controller-Zustände"""
     NOTREADY = "notReady"
     PENDING = "pending"
     ISREADY = "isReady"
     UNKNOWN = "unknown"
     ERROR = "error"
+    BOOTING = "booting"
 
 
 class MoiseController:
-    """Klasse für die Kommunikation mit dem Moise-Controller"""
-    
-    def __init__(self, port_number, maeuse=None):
-        self.port_number = port_number
+    NOISE_WARN_THRESHOLD = 20
+
+    def __init__(self, controller_id, name, lane_map, baud_rate=115200, timeout=0.01, error_store=None):
+        """
+        lane_map: dict local_lane_str_or_int -> Maus instance
+        e.g. {"1": maus1, "2": maus2} or {1: maus1}
+        """
+        self.controller_id = controller_id
+        self.name = name
+        self.port_name = None
+        self.port = None
+        self.baud_rate = baud_rate
+        self.timeout = timeout
         self.serial_interface = None
-        self.maeuse = maeuse or []  # Liste der Mäuse, die an diesem Controller hängen
-        self.state = ControllerState.NOTREADY  # Controller State
-        
-        # Logger erstellen
-        import logging
+        self.state = ControllerState.NOTREADY
+        self.error_store = error_store
         self.logger = logging.getLogger(__name__)
-        
-        # Port je nach System generieren
-        if platform.system() == "Darwin":  # macOS
-            # Versuche beide Formate: mit führenden Nullen und ohne
-            self.port = f'/dev/tty.usbserial-{port_number:04d}'
-            self.port_alt = f'/dev/tty.usbserial-{port_number}'
-        else:  # Linux/Raspberry Pi
-            self.port = f'/dev/ttyUSB{port_number}'
-            self.port_alt = None
-    
+        self.firmware_mode = None
+        self.reported_lanes = None
+        self.io_states = {}
+        self._noise_window = []
+
+        self.lanes = {}
+        for k, maus in lane_map.items():
+            self.lanes[int(k)] = maus
+
+        # Back-compat list of mice in local-lane order
+        self.maeuse = [self.lanes[k] for k in sorted(self.lanes.keys())]
+
+    def set_port(self, port):
+        self.port = port
+        self.port_name = port
+
     def init(self):
-        """Serielle Schnittstelle öffnen"""
-        # SerialInterface mit einem Dummy-Logger erstellen
-        class DummyLogger:
-            def info(self, msg): pass
-            def debug(self, msg): pass
-            def error(self, msg): print(f"ERROR: {msg}")
-        
-        # Versuche zuerst den primären Port
-        self.serial_interface = SerialInterface(DummyLogger(), self.port)
-        if self.serial_interface.open_connection():
-            return True
-        
-        # Falls das fehlschlägt und ein alternativer Port existiert, versuche diesen
-        if self.port_alt:
-            self.serial_interface = SerialInterface(DummyLogger(), self.port_alt)
-            if self.serial_interface.open_connection():
-                self.port = self.port_alt  # Verwende den erfolgreichen Port
-                return True
-        
-        return False
-    
-    def input(self):
-        """Nicht-blockierendes Lesen von seriellen Daten"""
-        if self.serial_interface:
-            data = self.serial_interface.read_data()
-            if data and self.maeuse:
-                # Spezielle Kommandos verarbeiten
-                if data == "ready":
-                    # Controller als ready markieren
-                    self.state = ControllerState.ISREADY
-                    # Alle Mäuse in Ready-State setzen
-                    results = []
-                    for maus in self.maeuse:
-                        result = maus.set_ready()
-                        results.append(result)
-                    return results
-                elif data == "no":
-                    # Controller als notReady markieren
-                    self.state = ControllerState.NOTREADY
-                    return []
-                elif data.startswith("Error"):
-                    # Controller als error markieren
-                    self.logger.error(f"Controller {self.port_number}, error message : {data}")
-                    self.state = ControllerState.ERROR
-                    return []
-                elif data == "win1" and len(self.maeuse) >= 1:
-                    # Erste Maus als Gewinner markieren
-                    result = self.maeuse[0].set_winning()
-                    self.state = ControllerState.NOTREADY
-                    return [result]
-                elif data == "win2" and len(self.maeuse) >= 2:
-                    # Zweite Maus als Gewinner markieren
-                    result = self.maeuse[1].set_winning()
-                    self.state = ControllerState.NOTREADY
-                    return [result]
-                elif data in ["11", "12", "13"] and len(self.maeuse) >= 1:
-                    # Erste Maus bekommt Punkte
-                    points = int(data[1])  # Extrahiere die Punktzahl aus dem Kommando
-                    result = self.maeuse[0].add_points(points)
-                    self.state = ControllerState.NOTREADY
-                    return [result]
-                elif data in ["21", "22", "23"] and len(self.maeuse) >= 2:
-                    # Zweite Maus bekommt Punkte
-                    points = int(data[1])  # Extrahiere die Punktzahl aus dem Kommando
-                    result = self.maeuse[1].add_points(points)
-                    self.state = ControllerState.NOTREADY
-                    return [result]
-                else:
-                    self.state = ControllerState.UNKNOWN
-                    self.logger.info(f"Controller {self.port_number}, unknown input message : {data}")
-            return data
-        return None
-    
+        if not self.port:
+            return False
+        self.serial_interface = SerialInterface(
+            self.logger, self.port, self.baud_rate, self.timeout
+        )
+        ok = self.serial_interface.open_connection()
+        if ok:
+            self.state = ControllerState.BOOTING
+            if self.error_store:
+                self.error_store.clear(source=f"controller:{self.controller_id}")
+        return ok
+
     def close(self):
-        """Serielle Schnittstelle schließen"""
         if self.serial_interface:
             self.serial_interface.close_connection()
-    
-    def cycleUpdate(self):
-        """Controller-Cycle-Update"""
-        # Hier können Controller-spezifische Updates gemacht werden
-        # Aktuell leer, kann später erweitert werden
-        pass
-    
+
     def sendCommand(self, command):
-        """Kommando an Controller senden"""
         if self.serial_interface:
-            self.serial_interface.send_data(command)
-            self.state = ControllerState.UNKNOWN # Setze State auf UNKNOWN nach dem Senden
+            self.serial_interface.send_command(command)
             return True
         return False
-    
+
     def checkState(self):
-        """Controller State prüfen und ggf. "ready?" senden"""
-        # Sende "ready?" und setze State auf PENDING
         if self.serial_interface:
-            self.serial_interface.send_data("ready?")
-            self.state = ControllerState.PENDING 
+            self.serial_interface.send_command("ready?")
+            self.state = ControllerState.PENDING
+
+    def input(self):
+        if not self.serial_interface:
+            return None
+
+        lines = self.serial_interface.read_lines()
+        for text, classification in lines:
+            if classification == "bootlog":
+                self.state = ControllerState.BOOTING
+                if self.error_store:
+                    self.error_store.raise_error(
+                        "controller_reboot",
+                        f"Controller {self.controller_id} rebooted",
+                        source=f"controller:{self.controller_id}",
+                        severity="warning",
+                    )
+                continue
+
+            if classification != "valid":
+                self._record_noise()
+                continue
+
+            self._handle_valid(text)
+        return None
+
+    def _record_noise(self):
+        now = time.time()
+        self._noise_window.append(now)
+        self._noise_window = [t for t in self._noise_window if now - t < 10]
+        if len(self._noise_window) >= self.NOISE_WARN_THRESHOLD and self.error_store:
+            self.error_store.raise_error(
+                "serial_noise",
+                f"High noise on controller {self.controller_id} ({len(self._noise_window)} discarded/10s)",
+                source=f"controller:{self.controller_id}",
+                severity="warning",
+            )
+
+    def _handle_valid(self, data):
+        if data.startswith("rdy "):
+            # Boot banner: rdy id=1 lanes=2 fw=2.0.0
+            self.state = ControllerState.NOTREADY
+            parts = data.split()
+            for p in parts[1:]:
+                if p.startswith("id="):
+                    pass  # identity already known from discovery
+                elif p.startswith("lanes="):
+                    try:
+                        self.reported_lanes = int(p.split("=", 1)[1])
+                    except ValueError:
+                        pass
+            if self.error_store:
+                self.error_store.clear(code="controller_reboot", source=f"controller:{self.controller_id}")
+            return
+
+        if data == "ready":
+            self.state = ControllerState.ISREADY
+            for maus in self.maeuse:
+                maus.set_ready()
+            return
+
+        if data == "no":
+            self.state = ControllerState.NOTREADY
+            return
+
+        if data == "error" or data.startswith("err "):
+            self.state = ControllerState.ERROR
+            self.logger.error(f"Controller {self.controller_id}: {data}")
+            if self.error_store:
+                self.error_store.raise_error(
+                    "controller_error",
+                    data,
+                    source=f"controller:{self.controller_id}",
+                )
+            return
+
+        if data.startswith("st "):
+            st = data[3:].strip()
+            if st == "ready":
+                self.state = ControllerState.ISREADY
+            elif st in ("homing", "startup", "racing", "stop"):
+                if st != "ready":
+                    # don't force NOTREADY on every state — only leave ISREADY when leaving ready
+                    if self.state == ControllerState.ISREADY and st != "ready":
+                        self.state = ControllerState.NOTREADY
+            elif st == "error":
+                self.state = ControllerState.ERROR
+            return
+
+        if data.startswith("mode "):
+            self.firmware_mode = data[5:].strip()
+            return
+
+        if data.startswith("id "):
+            return
+
+        if data.startswith("lanes "):
+            try:
+                self.reported_lanes = int(data.split()[1])
+            except (IndexError, ValueError):
+                pass
+            return
+
+        if data.startswith("evt score "):
+            parts = data.split()
+            if len(parts) >= 4:
+                local = int(parts[2])
+                points = int(parts[3])
+                maus = self.lanes.get(local)
+                if maus:
+                    maus.add_points(points)
+            return
+
+        if data.startswith("evt win "):
+            parts = data.split()
+            if len(parts) >= 3:
+                local = int(parts[2])
+                maus = self.lanes.get(local)
+                if maus:
+                    maus.set_winning()
+            return
+
+        if data.startswith("evt io "):
+            # evt io <lane> <name> <0|1>
+            parts = data.split()
+            if len(parts) >= 5:
+                local = parts[2]
+                name = parts[3]
+                val = int(parts[4])
+                key = f"{local}:{name}"
+                self.io_states[key] = val
+            return
+
+        # Unknown valid-looking line: log only, do NOT change controller state
+        self.logger.info(f"Controller {self.controller_id} unknown message: {data}")
+
+    def cycleUpdate(self):
+        pass
+
+    def get_status(self):
+        stats = self.serial_interface.stats.as_dict() if self.serial_interface else {}
+        return {
+            "id": self.controller_id,
+            "name": self.name,
+            "port": self.port,
+            "state": self.state.value,
+            "firmware_mode": self.firmware_mode,
+            "reported_lanes": self.reported_lanes,
+            "lanes": {str(k): v.maus_id for k, v in self.lanes.items()},
+            "serial_stats": stats,
+            "io_states": self.io_states.copy(),
+        }
+
+    def get_serial_log(self, limit=100):
+        if self.serial_interface:
+            return self.serial_interface.get_log(limit)
+        return []

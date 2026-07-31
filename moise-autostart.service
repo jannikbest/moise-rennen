@@ -1,0 +1,16 @@
+[Unit]
+Description=Moise Autostart Service
+After=network.target graphical-session.target
+Wants=network.target
+
+[Service]
+Type=oneshot
+User=noi
+Environment=DISPLAY=:0
+WorkingDirectory=/home/noi/moise-rennen
+ExecStartPre=/bin/sleep 10
+ExecStart=/bin/bash -c 'cd /home/noi/moise-rennen && ./start-moise.sh'
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

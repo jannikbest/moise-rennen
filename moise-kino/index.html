@@ -3,48 +3,170 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JSON Daten Anzeige</title>
+    <title>Moise-Kino</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>JSON Daten Anzeige</h1>
-            <p>Verbunden mit Webserver für Live-Daten</p>
-        </header>
-        
-        <div class="controls">
-            <button id="fetchBtn" class="btn btn-primary">Verbinden</button>
-            <button id="autoFetchBtn" class="btn btn-secondary">Auto-Reconnect</button>
-            <input type="text" id="serverUrl" placeholder="WebSocket Server URL" value="ws://localhost:8765" class="input">
+    <nav class="topbar" id="topbar">
+        <div class="topbar-brand">Moise-Rennen</div>
+        <div class="topbar-modes">
+            <button class="mode-btn" data-mode="config" type="button">Konfig</button>
+            <button class="mode-btn" data-mode="debug" type="button">Debug</button>
+            <button class="mode-btn active" data-mode="run" type="button">Run</button>
         </div>
-        
-        <div class="status">
-            <div id="connectionStatus" class="status-indicator">
-                <span class="status-dot"></span>
-                <span id="statusText">Nicht verbunden</span>
-            </div>
+        <div class="topbar-status">
+            <span id="connectionStatus" class="status-indicator"><span class="status-dot"></span></span>
+            <span id="systemModeLabel" class="mode-label">run</span>
         </div>
-        
-        <div class="content">
-            <div class="data-section">
-                <h2>Live Game-Daten</h2>
-                <div id="dataDisplay" class="data-display">
-                    <div class="placeholder">Klicken Sie auf "Verbinden" um WebSocket-Daten zu empfangen</div>
-                </div>
+    </nav>
+
+    <div id="errorBanner" class="error-banner hidden"></div>
+
+    <div id="passwordModal" class="modal hidden">
+        <div class="modal-card">
+            <h2>Admin-Passwort</h2>
+            <input type="password" id="passwordInput" placeholder="Passwort" autocomplete="off">
+            <div class="modal-actions">
+                <button type="button" id="passwordCancel">Abbrechen</button>
+                <button type="button" id="passwordSubmit" class="primary">OK</button>
             </div>
-            
-            <div class="raw-section">
-                <h2>Raw JSON</h2>
-                <pre id="rawJson" class="raw-json">Keine Daten verfügbar</pre>
-            </div>
-        </div>
-        
-        <div class="error-section">
-            <div id="errorDisplay" class="error-display hidden"></div>
+            <p id="passwordError" class="error-text hidden">Falsches Passwort</p>
         </div>
     </div>
-    
-    <script src="script.js"></script>
+
+    <!-- RUN -->
+    <section id="view-run" class="mode-view">
+        <div class="game-layout">
+            <aside class="game-info">
+                <div class="info-field">
+                    <div class="field-label">Guthaben</div>
+                    <div id="guthabenValue" class="field-value">-</div>
+                </div>
+                <div class="info-field">
+                    <div class="field-label">Ein Spiel kostet</div>
+                    <div id="priceValue" class="field-value">-</div>
+                </div>
+                <div class="info-field">
+                    <div class="field-label">Gespielte Spiele</div>
+                    <div id="spieleValue" class="field-value">-</div>
+                </div>
+                <div class="info-field">
+                    <div class="field-label">Status</div>
+                    <div id="moiseStatusValue" class="field-value">Keine Verbindung</div>
+                </div>
+            </aside>
+
+            <div class="maus-names-bottom" id="mausNamesBottom"></div>
+
+            <div class="game-view">
+                <div id="ready-view" class="game-state-view hidden">
+                    <img id="readyMoiseImage" src="moise_1.jpeg" alt="Moise bereit" class="moise-full-image">
+                </div>
+                <div id="racing-view" class="game-state-view">
+                    <div class="maus-tracks" id="mausTracks"></div>
+                </div>
+                <div id="finished-view" class="game-state-view hidden">
+                    <div class="winner-display">
+                        <h2>Gewonnen!</h2>
+                        <div id="winnerMaus" class="winner-maus">-</div>
+                        <div id="winnerPlayer" class="winner-player hidden">
+                            <span>Spieler:</span>
+                            <span id="winnerPlayerName">-</span>
+                        </div>
+                        <div id="winnerTime" class="winner-time">-</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CONFIG -->
+    <section id="view-config" class="mode-view hidden">
+        <div class="panel-grid">
+            <div class="panel">
+                <h2>Controller</h2>
+                <div class="panel-actions">
+                    <button type="button" id="btnDiscover" class="primary">Discover</button>
+                </div>
+                <div id="controllerList" class="controller-list"></div>
+                <div id="discoveryList" class="discovery-list"></div>
+            </div>
+
+            <div class="panel">
+                <h2>Bahnen / Mapping</h2>
+                <div id="laneMapping" class="lane-mapping"></div>
+                <button type="button" id="btnSaveConfig" class="primary">Config speichern</button>
+            </div>
+
+            <div class="panel">
+                <h2>Admin / Kasse</h2>
+                <div class="cash-stats" id="cashStats"></div>
+                <div class="credit-actions">
+                    <button type="button" data-credit="100">+1 €</button>
+                    <button type="button" data-credit="200">+2 €</button>
+                    <button type="button" data-credit="500">+5 €</button>
+                </div>
+                <div class="form-row">
+                    <input type="number" id="creditCustom" step="0.5" min="0" placeholder="Betrag €">
+                    <button type="button" id="btnCreditCustom">Aufbuchen</button>
+                </div>
+                <div class="form-row">
+                    <label>Spielpreis €</label>
+                    <input type="number" id="priceInput" step="0.5" min="0.5">
+                    <button type="button" id="btnSetPrice" class="primary">Setzen</button>
+                </div>
+                <p id="gamesEstimate" class="muted"></p>
+                <button type="button" id="btnResetCounters" class="danger">Zähler zurücksetzen</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- DEBUG -->
+    <section id="view-debug" class="mode-view hidden">
+        <div class="panel-grid debug-grid">
+            <div class="panel">
+                <h2>I/O & Motor / LED</h2>
+                <div id="debugLanes" class="debug-lanes"></div>
+                <div class="panel-actions">
+                    <button type="button" id="btnIoStreamOn">IO Stream an</button>
+                    <button type="button" id="btnIoStreamOff">IO Stream aus</button>
+                </div>
+                <div id="ioEventLog" class="event-log"></div>
+            </div>
+
+            <div class="panel serial-panel">
+                <h2>Serial Monitor</h2>
+                <div id="serialStats" class="serial-stats"></div>
+                <label class="checkbox-row">
+                    <input type="checkbox" id="showNoise" checked>
+                    Verworfene Zeilen anzeigen
+                </label>
+                <label class="checkbox-row">
+                    <input type="checkbox" id="rawMode">
+                    Alles roh (Filter-Hinweis)
+                </label>
+                <div id="serialLog" class="serial-log"></div>
+                <div class="form-row">
+                    <select id="serialController"></select>
+                    <input type="text" id="serialCommand" placeholder="Kommando">
+                    <button type="button" id="btnSerialSend" class="primary">Senden</button>
+                </div>
+            </div>
+
+            <div class="panel">
+                <h2>Fehler</h2>
+                <div id="errorList" class="error-list"></div>
+            </div>
+        </div>
+    </section>
+
+    <script src="config.js"></script>
+    <script src="websocket-client.js"></script>
+    <script src="maus-animation.js"></script>
+    <script src="data-formatter.js"></script>
+    <script src="run-view.js"></script>
+    <script src="config-view.js"></script>
+    <script src="debug-view.js"></script>
+    <script src="app.js"></script>
 </body>
-</html> 
+</html>

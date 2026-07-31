@@ -1,6 +1,6 @@
 #include "mouse.h"
 
-Mouse::Mouse(MousePins p, String n) 
+Mouse::Mouse(MousePins p, String n)
   : pins(p), name(n), strip(NUM_LEDS, p.led, NEO_GRB + NEO_KHZ800) {
   isBlinking = false;
   blinkState = false;
@@ -15,40 +15,34 @@ Mouse::Mouse(MousePins p, String n)
   isScoreMotor = false;
   scoreMotorStartTime = 0;
   scoreMotorDuration = 0;
-  raceSpeed = 255;  // Initialize to maximum speed
+  raceSpeed = 255;
 }
 
 void Mouse::setup() {
-  // Limit switches with pullup (NO) - Ground switching
   pinMode(pins.home, INPUT_PULLUP);
   pinMode(pins.win, INPUT_PULLUP);
-  
-  // Score buttons with pulldown (NO)
+
   pinMode(pins.score1, INPUT_PULLDOWN);
   pinMode(pins.score2, INPUT_PULLDOWN);
   pinMode(pins.score3, INPUT_PULLDOWN);
-  
-  // H-Bridge motor control pins
+
   pinMode(pins.motor_in1, OUTPUT);
   pinMode(pins.motor_in2, OUTPUT);
   pinMode(pins.motor_en, OUTPUT);
   motorStop();
-  
-  // Initialize LED strip
+
   strip.begin();
   strip.setBrightness(LED_BRIGHTNESS);
   strip.show();
 }
 
 void Mouse::input() {
-  // Save current states to last variables
   lastHomeState = currentHomeState;
   lastWinState = currentWinState;
   lastScore1State = currentScore1State;
   lastScore2State = currentScore2State;
   lastScore3State = currentScore3State;
-  
-  // Read new hardware states
+
   currentHomeState = digitalRead(pins.home);
   currentWinState = digitalRead(pins.win);
   currentScore1State = digitalRead(pins.score1);
@@ -75,31 +69,21 @@ void Mouse::motorReverse(int speed) {
 }
 
 void Mouse::update() {
-  if (TEST_IO) {
-    test_io();
-  } else {
-    // Handle score motor timing
-    if (isScoreMotor) {
-      updateScoreMotor();
-    }
-    
-    // Handle score display (highest priority)
-    if (isScoreDisplay) {
-      updateScoreDisplay();
-    }
-    // Handle blinking
-    else if (isBlinking) {
-      updateBlinking();
-    }
-    // Handle running light
-    else if (isRunningLight) {
-      updateRunningLight();
-    }
+  if (isScoreMotor) {
+    updateScoreMotor();
+  }
+
+  if (isScoreDisplay) {
+    updateScoreDisplay();
+  } else if (isBlinking) {
+    updateBlinking();
+  } else if (isRunningLight) {
+    updateRunningLight();
   }
 }
 
 void Mouse::setAllLEDs(int r, int g, int b) {
-  for(int i = 0; i < NUM_LEDS; i++) {
+  for (int i = 0; i < NUM_LEDS; i++) {
     strip.setPixelColor(i, r, g, b);
   }
   strip.show();
@@ -116,7 +100,6 @@ int Mouse::readScore1Switch() { return currentScore1State; }
 int Mouse::readScore2Switch() { return currentScore2State; }
 int Mouse::readScore3Switch() { return currentScore3State; }
 
-// Edge detection helpers
 bool Mouse::homeRisingEdge() {
   return currentHomeState == LOW && lastHomeState == HIGH;
 }
@@ -155,8 +138,7 @@ void Mouse::startBlinking(int r, int g, int b, unsigned long interval) {
   isBlinking = true;
   blinkState = true;
   lastBlinkTime = millis();
-  // Show initial color
-  for(int i = 0; i < NUM_LEDS; i++) {
+  for (int i = 0; i < NUM_LEDS; i++) {
     strip.setPixelColor(i, r, g, b);
   }
   strip.show();
@@ -182,13 +164,9 @@ void Mouse::startScoreDisplay(int r, int g, int b, unsigned long duration) {
   isScoreDisplay = true;
   scoreDisplayStartTime = millis();
   scoreDisplayDuration = duration;
-  
-  // Set colors directly (no points-to-color logic)
   scoreDisplayR = r;
-  scoreDisplayG = g; 
+  scoreDisplayG = g;
   scoreDisplayB = b;
-  
-  // Show color immediately
   setAllLEDs(scoreDisplayR, scoreDisplayG, scoreDisplayB);
 }
 
@@ -203,19 +181,16 @@ int Mouse::getRaceSpeed() const {
 }
 
 void Mouse::addMotorTime(unsigned long additionalTime) {
-  // Handle motor timing - add to existing time or start new
   if (isScoreMotor) {
-    // Motor already running - add time to existing duration
     unsigned long currentTime = millis();
     unsigned long remainingTime = scoreMotorDuration - (currentTime - scoreMotorStartTime);
     scoreMotorDuration = remainingTime + additionalTime;
-    scoreMotorStartTime = currentTime;  // Reset start time to now
+    scoreMotorStartTime = currentTime;
   } else {
-    // Start new motor sequence - use race speed for scoring movement
     isScoreMotor = true;
     scoreMotorStartTime = millis();
     scoreMotorDuration = additionalTime;
-    motorForward(raceSpeed);  // Use race speed instead of MOTOR_SPEED
+    motorForward(raceSpeed);
   }
 }
 
@@ -224,14 +199,12 @@ void Mouse::updateBlinking() {
   if (currentTime - lastBlinkTime >= blinkInterval) {
     blinkState = !blinkState;
     lastBlinkTime = currentTime;
-    
+
     if (blinkState) {
-      // Turn on with blink color
-      for(int i = 0; i < NUM_LEDS; i++) {
+      for (int i = 0; i < NUM_LEDS; i++) {
         strip.setPixelColor(i, blinkR, blinkG, blinkB);
       }
     } else {
-      // Turn off
       strip.clear();
     }
     strip.show();
@@ -240,48 +213,30 @@ void Mouse::updateBlinking() {
 
 void Mouse::updateRunningLight() {
   unsigned long currentTime = millis();
-  if (currentTime - lastRunningTime >= RUNNING_LIGHT_INTERVAL) {  // Animation interval
+  if (currentTime - lastRunningTime >= RUNNING_LIGHT_INTERVAL) {
     lastRunningTime = currentTime;
-    
-    // Clear all LEDs first
     strip.clear();
-    
-    // Create moving pattern: 2 dim left + 2 bright center + 2 dim right
-    for(int i = 0; i < NUM_LEDS; i++) {
-      int brightness = 0;
-      
-      // Calculate distance from running position
-      int distance = abs(i - runningPosition);
-      
-      if (distance == 0 || distance == 1) {
-        // Center 2 LEDs - super bright
-        brightness = LED_BRIGHTNESS_MAX;
-      } else if (distance == 2 || distance == 3) {
-        // Side 2+2 LEDs - dimmed
-        brightness = LED_BRIGHTNESS_DIM;
-      }
-      
-      if (brightness > 0) {
-        strip.setPixelColor(i, brightness, brightness, brightness);  // White
-      }
+
+    int brightnessPattern[10] = {20, 60, 120, 200, 255, 255, 200, 120, 60, 20};
+
+    for (int i = 0; i < NUM_LEDS; i++) {
+      int patternIndex = (i + runningPosition) % 10;
+      int brightness = brightnessPattern[patternIndex];
+      strip.setPixelColor(i, brightness, brightness, brightness);
     }
-    
+
     strip.show();
-    
-    // Move to next position
     runningPosition++;
-    if (runningPosition >= NUM_LEDS) {
-      runningPosition = 0;  // Loop back to start
+    if (runningPosition >= 10) {
+      runningPosition = 0;
     }
   }
 }
 
 void Mouse::updateScoreDisplay() {
   unsigned long currentTime = millis();
-  // Use the specified duration instead of hardcoded 2000ms
   if (currentTime - scoreDisplayStartTime >= scoreDisplayDuration) {
     isScoreDisplay = false;
-    // Resume running light if we were in race mode
     if (isRunningLight) {
       startRunningLight();
     }
@@ -290,45 +245,8 @@ void Mouse::updateScoreDisplay() {
 
 void Mouse::updateScoreMotor() {
   unsigned long currentTime = millis();
-  // Stop motor after specified duration
   if (currentTime - scoreMotorStartTime >= scoreMotorDuration) {
     isScoreMotor = false;
     motorStop();
   }
 }
-
-void Mouse::test_io() {
-  // Check for button presses using edge detection helpers
-  if (homeRisingEdge()) {
-    Serial.println(name + ": HOME switch pressed!");
-    motorStop();
-  }
-  
-  if (winRisingEdge()) {
-    Serial.println(name + ": WIN switch pressed!");
-    motorStop();
-  }
-  
-  if (score1RisingEdge()) {
-    Serial.println(name + ": SCORE 1 point!");
-    motorForward(MOTOR_SPEED);
-  }
-  
-  if (score2RisingEdge()) {
-    Serial.println(name + ": SCORE 2 points!");
-    motorReverse(MOTOR_SPEED);
-  }
-  
-  if (score3RisingEdge()) {
-    Serial.println(name + ": SCORE 3 points!");
-    motorForward(MOTOR_SPEED);
-  }
-  
-  // Test LED pattern
-
-  for(int i = 0; i < NUM_LEDS; i++) {
-    strip.setPixelColor(i, COLOR_RED_R); // Red for test mode
-  }
-  strip.show();
-  
-} 

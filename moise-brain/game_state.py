@@ -1,124 +1,115 @@
 #!/usr/bin/env python3
-"""
-Game-State-Modul für Moise-Brain
-"""
+"""Persistent accounting state (cash + service credits)."""
 import json
 import logging
 from pathlib import Path
 
 
 class GameState:
-    """Klasse zum Laden und Speichern des Spielzustands"""
-    
     def __init__(self, state_file="game_state.json"):
-        """
-        Game-State initialisieren
-        
-        Args:
-            state_file (str): Pfad zur JSON-State-Datei
-        """
         self.logger = logging.getLogger(__name__)
         self.state_file = state_file
         self.state = self._load_state()
-    
+
     def _load_state(self):
-        """JSON-State-Datei laden"""
         try:
             state_path = Path(self.state_file)
             if not state_path.exists():
-                self.logger.info(f"State-Datei {self.state_file} nicht gefunden - erstelle Standard")
                 return self._get_default_state()
-            
-            with open(state_path, 'r', encoding='utf-8') as f:
+            with open(state_path, "r", encoding="utf-8") as f:
                 state = json.load(f)
-            
-            self.logger.info(f"Spielzustand aus {self.state_file} geladen")
+            # Migrate older files
+            state.setdefault("service_gutschriften", 0)
             return state
-            
-        except json.JSONDecodeError as e:
-            self.logger.error(f"Fehler beim Parsen der State-Datei: {e}")
-            return self._get_default_state()
         except Exception as e:
-            self.logger.error(f"Fehler beim Laden des Spielzustands: {e}")
+            self.logger.error(f"State load error: {e}")
             return self._get_default_state()
-    
+
     def _get_default_state(self):
-        """Standard-Spielzustand zurückgeben"""
         return {
             "einzahlungen": 0,
             "ausgaben": 0,
-            "gespielte_spiele": 0
+            "gespielte_spiele": 0,
+            "freispiel_betrag": 0,
+            "service_gutschriften": 0,
         }
-    
+
     def _save_state(self):
-        """Spielzustand in Datei speichern"""
         try:
-            with open(self.state_file, 'w', encoding='utf-8') as f:
+            with open(self.state_file, "w", encoding="utf-8") as f:
                 json.dump(self.state, f, indent=2, ensure_ascii=False)
-            
-            self.logger.debug(f"Spielzustand in {self.state_file} gespeichert")
-            
         except Exception as e:
-            self.logger.error(f"Fehler beim Speichern des Spielzustands: {e}")
-    
+            self.logger.error(f"State save error: {e}")
+
     def get_einzahlungen(self):
-        """Einzahlungen zurückgeben"""
         return self.state.get("einzahlungen", 0)
-    
+
     def get_ausgaben(self):
-        """Ausgaben zurückgeben"""
         return self.state.get("ausgaben", 0)
-    
+
+    def get_service_gutschriften(self):
+        return self.state.get("service_gutschriften", 0)
+
     def get_guthaben(self):
-        """Guthaben als Differenz zwischen Einzahlungen und Ausgaben berechnen"""
-        return self.get_einzahlungen() - self.get_ausgaben()
-    
+        return self.get_einzahlungen() + self.get_service_gutschriften() - self.get_ausgaben()
+
     def get_gespielte_spiele(self):
-        """Anzahl gespielte Spiele zurückgeben"""
         return self.state.get("gespielte_spiele", 0)
-    
-    def set_einzahlungen(self, einzahlungen):
-        """Einzahlungen setzen und speichern"""
-        self.state["einzahlungen"] = einzahlungen
+
+    def get_freispiel_betrag(self):
+        return self.state.get("freispiel_betrag", 0)
+
+    def add_freispiel(self, betrag):
+        """Legacy free-play: credit via service_gutschriften, not cash."""
+        self.state["freispiel_betrag"] = self.get_freispiel_betrag() + betrag
         self._save_state()
-        self.logger.info(f"Einzahlungen auf {einzahlungen} gesetzt")
-    
-    def set_ausgaben(self, ausgaben):
-        """Ausgaben setzen und speichern"""
-        self.state["ausgaben"] = ausgaben
+        # One free game worth of credit — use configured price externally if needed;
+        # keep 200 cent default for backward compatibility with support bot.
+        self.add_service_gutschrift(200)
+        self.logger.info(f"Freispiel +{betrag}, service credit +200")
+
+    def set_einzahlungen(self, value):
+        self.state["einzahlungen"] = value
         self._save_state()
-        self.logger.info(f"Ausgaben auf {ausgaben} gesetzt")
-    
-    def set_gespielte_spiele(self, spiele):
-        """Anzahl gespielte Spiele setzen und speichern"""
-        self.state["gespielte_spiele"] = spiele
+
+    def set_ausgaben(self, value):
+        self.state["ausgaben"] = value
         self._save_state()
-        self.logger.info(f"Gespielte Spiele auf {spiele} gesetzt")
-    
+
+    def set_service_gutschriften(self, value):
+        self.state["service_gutschriften"] = max(0, int(value))
+        self._save_state()
+
+    def set_gespielte_spiele(self, value):
+        self.state["gespielte_spiele"] = value
+        self._save_state()
+
     def add_einzahlung(self, betrag):
-        """Einzahlung hinzufügen"""
-        neue_einzahlungen = self.get_einzahlungen() + betrag
-        self.set_einzahlungen(neue_einzahlungen)
-        return neue_einzahlungen
-    
+        self.set_einzahlungen(self.get_einzahlungen() + betrag)
+        return self.get_einzahlungen()
+
     def add_ausgaben(self, betrag):
-        """Ausgaben erhöhen"""
-        neue_ausgaben = self.get_ausgaben() + betrag
-        self.set_ausgaben(neue_ausgaben)
-        return neue_ausgaben
-    
+        self.set_ausgaben(self.get_ausgaben() + betrag)
+        return self.get_ausgaben()
+
+    def add_service_gutschrift(self, cent):
+        cent = int(cent)
+        self.set_service_gutschriften(self.get_service_gutschriften() + cent)
+        self.logger.info(f"Service credit +{cent} cent (total {self.get_service_gutschriften()})")
+        return self.get_service_gutschriften()
+
     def increment_spiele(self):
-        """Anzahl gespielte Spiele um 1 erhöhen"""
-        neue_spiele = self.get_gespielte_spiele() + 1
-        self.set_gespielte_spiele(neue_spiele)
-        return neue_spiele
-    
-    def get_state(self):
-        """Kompletten Spielzustand zurückgeben"""
-        return self.state.copy()
-    
-    def reset_state(self):
-        """Spielzustand zurücksetzen"""
-        self.state = self._get_default_state()
+        self.set_gespielte_spiele(self.get_gespielte_spiele() + 1)
+        return self.get_gespielte_spiele()
+
+    def reset_counters(self):
+        self.state["einzahlungen"] = 0
+        self.state["ausgaben"] = 0
+        self.state["service_gutschriften"] = 0
+        self.state["gespielte_spiele"] = 0
+        self.state["freispiel_betrag"] = 0
         self._save_state()
-        self.logger.info("Spielzustand zurückgesetzt") 
+        self.logger.info("Accounting counters reset")
+
+    def get_state(self):
+        return self.state.copy()

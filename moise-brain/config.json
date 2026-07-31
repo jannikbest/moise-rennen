@@ -1,27 +1,53 @@
 {
-  "mice": {
-    "count": 4,
-    "max_id": 4
-  },
+  "lanes": [
+    { "id": 1, "name": "Speedy", "speed": 255 },
+    { "id": 2, "name": "Pilzy", "speed": 255 },
+    { "id": 3, "name": "Emdy", "speed": 255 },
+    { "id": 4, "name": "Kety", "speed": 255 },
+    { "id": 5, "name": "Koky", "speed": 255 }
+  ],
   "controllers": [
     {
       "id": 1,
-      "name": "Controller 1",
-      "serial_port": "/dev/tty.usbserial-0001",
-      "baud_rate": 115200,
-      "timeout": 0.01
+      "name": "Links",
+      "lanes": { "1": 1, "2": 2 }
     },
     {
       "id": 2,
-      "name": "Controller 2", 
-      "serial_port": "/dev/usbserial-6",
-      "baud_rate": 115200,
-      "timeout": 0.01
+      "name": "Mitte",
+      "lanes": { "1": 3 }
+    },
+    {
+      "id": 3,
+      "name": "Rechts",
+      "lanes": { "1": 4, "2": 5 }
     }
   ],
+  "game": {
+    "price_cent": 100
+  },
+  "serial": {
+    "baud_rate": 115200,
+    "timeout": 0.01
+  },
+  "start_button": {
+    "enabled": true,
+    "gpio_pin": 17,
+    "pull_up_down": "PUD_UP",
+    "edge": "FALLING",
+    "bouncetime": 100
+  },
+  "coin_counter": {
+    "enabled": true,
+    "gpio_pin": 18,
+    "pull_up_down": "PUD_UP",
+    "edge": "FALLING",
+    "bouncetime": 100,
+    "pulse_timeout": 0.8
+  },
   "websocket": {
     "enabled": true,
     "host": "localhost",
     "port": 8765
   }
-} 
+}

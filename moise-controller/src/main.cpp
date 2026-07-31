@@ -1,48 +1,56 @@
 #include <Arduino.h>
-#include <Adafruit_NeoPixel.h>
 #include "config.h"
 #include "mouse.h"
 #include "game.h"
 
-// Create mouse instances
-Mouse mouse1(mouse1_pins, "M1");  // Red
-Mouse mouse2(mouse2_pins, "M2");  // Blue
-
-// Create game instance
+Mouse mouse1(mouse1_pins, "M1");
+Mouse mouse2(mouse2_pins, "M2");
 Game game;
+
+static char lineBuf[SERIAL_LINE_MAX];
+static int lineLen = 0;
+static bool lineOverflow = false;
+
+static void pollSerial() {
+  while (Serial.available() > 0) {
+    char c = (char)Serial.read();
+    if (c == '\r') continue;
+    if (c == '\n') {
+      if (!lineOverflow && lineLen > 0) {
+        lineBuf[lineLen] = '\0';
+        game.setCommand(String(lineBuf));
+      }
+      lineLen = 0;
+      lineOverflow = false;
+      continue;
+    }
+    if (lineLen >= SERIAL_LINE_MAX - 1) {
+      lineOverflow = true;
+      continue;
+    }
+    lineBuf[lineLen++] = c;
+  }
+}
 
 void setup() {
   Serial.begin(SERIAL_BAUD_RATE);
   delay(SETUP_DELAY);
-  
+
   mouse1.setup();
   mouse2.setup();
-  
-  // Register mice with game
-  game.registerMouse1(&mouse1);
-  game.registerMouse2(&mouse2);
+  game.begin(&mouse1, &mouse2);
 }
 
 void loop() {
-  // Check for serial commands
-  if (Serial.available() > 0) {
-    String command = Serial.readString();
-    command.trim(); // Remove whitespace/newlines
-    if (command.length() > 0) {
-      game.setCommand(command);
-    }
-  }
-  
-  #if !TEST_STATE_MACHINE
-  // Read hardware inputs first
+  pollSerial();
+
   mouse1.input();
   mouse2.input();
-  
-  // Then process logic
+  game.onInputsUpdated();
+
   mouse1.update();
   mouse2.update();
-  #endif
-  
   game.update();
-  delay(MAIN_LOOP_DELAY);  // Polling interval
+
+  delay(MAIN_LOOP_DELAY);
 }
