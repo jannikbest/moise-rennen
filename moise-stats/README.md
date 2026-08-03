@@ -20,6 +20,8 @@ cp .env.example .env   # key is auto-generated on first run if empty
 See `docs/kino-api.md`.
 
 ```bash
-./dev.sh   # mock ESP + stats + Kino
+./dev.sh   # mock ESP + stats + Kino (macOS / Linux)
 ./run.sh   # real ESP (set ESP_WS_URL in .env), no mock
+.\dev.ps1  # same on Windows PowerShell
+.\run.ps1
 ```

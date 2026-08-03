@@ -151,11 +151,22 @@ Cash accounting: `guthaben = einzahlungen + service_gutschriften - ausgaben`.
 
 ## Run
 
+macOS / Linux:
+
 ```bash
-./dev.sh          # mock ESP + stats + Kino (any OS; ./dev-mac.sh is an alias)
+./dev.sh          # mock ESP + stats + Kino (./dev-mac.sh is an alias)
 ./run.sh          # production: stats + Kino, real ESP via moise-stats/.env
 ./start-moise.sh  # Pi kiosk: same as run.sh + Chromium fullscreen
 ```
+
+Windows (PowerShell):
+
+```powershell
+.\dev.ps1         # mock ESP + stats + Kino
+.\run.ps1         # production: real ESP via moise-stats/.env
+```
+
+If execution is blocked: `powershell -ExecutionPolicy Bypass -File .\dev.ps1`
 
 Kino is served at `http://127.0.0.1:8080` (classic `<script>` tags, no bundler).
 

@@ -17,7 +17,8 @@ leaderboard after the finish.
 ## Local development
 
 ```bash
-./dev.sh
+./dev.sh          # macOS / Linux
+.\dev.ps1         # Windows PowerShell
 ```
 
 Opens mock ESP (`:81` + control `:82`), stats service (`:8770`), and Kino on
@@ -26,7 +27,8 @@ Opens mock ESP (`:81` + control `:82`), stats service (`:8770`), and Kino on
 Production without mock (real ESP via `ESP_WS_URL` in `moise-stats/.env`):
 
 ```bash
-./run.sh
+./run.sh          # macOS / Linux
+.\run.ps1         # Windows PowerShell
 ```
 
 In test mode the mock stays on **ready** until you click **Start race**
