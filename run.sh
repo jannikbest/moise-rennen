@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Pi / kiosk autostart: production stack + fullscreen browser
+# Production launcher (any OS): stats + Kino static server — real ESP, no mock
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
@@ -7,6 +7,8 @@ ROOT="$(cd "$(dirname "$0")" && pwd)"
 . "$ROOT/moise-common.sh"
 
 moise_ensure_stats_venv "$ROOT"
+
+# Never expose the mock control button in production
 export MOCK_CONTROL_URL=""
 
 PIDS=()
@@ -18,29 +20,18 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-echo "Starting Moise Stats…"
 "$MOISE_PY" "$ROOT/moise-stats/main.py" &
 PIDS+=($!)
 
-echo "Starting Kino static server…"
 (
   cd "$ROOT/moise-kino"
   "$(moise_python)" -m http.server 8080
 ) &
 PIDS+=($!)
 
-sleep 2
-
-BROWSER="$(moise_find_browser || true)"
-if [ -z "$BROWSER" ]; then
-  echo "No Chromium/Chrome found — open http://127.0.0.1:8080 manually" >&2
-  wait
-  exit 0
-fi
-
-echo "Starting $BROWSER…"
-"$BROWSER" --kiosk --disable-web-security --user-data-dir=/tmp/chrome-kiosk \
-  http://127.0.0.1:8080/ &
-PIDS+=($!)
+echo "Stats: ws://0.0.0.0:8770/"
+echo "ESP:   ESP_WS_URL from moise-stats/.env (IP or host, e.g. 192.168.4.1)"
+echo "Kino:  http://127.0.0.1:8080"
+echo "Ctrl+C stops all."
 
 wait

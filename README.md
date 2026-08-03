@@ -149,9 +149,15 @@ Token required (Konfig / Debug / Kasse):
 
 Cash accounting: `guthaben = einzahlungen + service_gutschriften - ausgaben`.
 
-## Kiosk / file://
+## Run
 
-`start-moise.sh` opens Chromium with `file://…/moise-kino/index.html`. ES modules are blocked there — Kino stays classic `<script>` tags with globals. No bundler.
+```bash
+./dev.sh          # mock ESP + stats + Kino (any OS; ./dev-mac.sh is an alias)
+./run.sh          # production: stats + Kino, real ESP via moise-stats/.env
+./start-moise.sh  # Pi kiosk: same as run.sh + Chromium fullscreen
+```
+
+Kino is served at `http://127.0.0.1:8080` (classic `<script>` tags, no bundler).
 
 ## Timing / debounce (do not casually change)
 

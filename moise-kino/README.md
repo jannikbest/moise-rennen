@@ -17,11 +17,17 @@ leaderboard after the finish.
 ## Local development
 
 ```bash
-./dev-mac.sh
+./dev.sh
 ```
 
 Opens mock ESP (`:81` + control `:82`), stats service (`:8770`), and Kino on
-`http://localhost:8080`.
+`http://localhost:8080`. (`./dev-mac.sh` still works as an alias.)
+
+Production without mock (real ESP via `ESP_WS_URL` in `moise-stats/.env`):
+
+```bash
+./run.sh
+```
 
 In test mode the mock stays on **ready** until you click **Start race**
 (top-left). Or: `curl -X POST http://localhost:82/go`

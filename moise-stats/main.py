@@ -43,6 +43,43 @@ def parse_lane_labels(raw: str) -> dict[int, str]:
     return out
 
 
+def normalize_esp_ws_url(raw: str, default: str = "ws://127.0.0.1:81/") -> str:
+    """Accept full URLs or bare host/IP (optional :port).
+
+    Examples that all become ws://192.168.4.1:81/:
+      ws://192.168.4.1:81/
+      192.168.4.1
+      192.168.4.1:81
+      http://192.168.4.1:81
+    """
+    value = (raw or "").strip()
+    if not value:
+        return default
+
+    lower = value.lower()
+    if lower.startswith("http://"):
+        value = "ws://" + value[7:]
+    elif lower.startswith("https://"):
+        value = "wss://" + value[8:]
+    elif not (lower.startswith("ws://") or lower.startswith("wss://")):
+        value = "ws://" + value
+
+    # Ensure path — websockets is happier with a trailing slash
+    # ws://host:81  →  ws://host:81/
+    # ws://host     →  ws://host:81/   (default ESP port)
+    rest = value.split("://", 1)[1]
+    hostport, _, path = rest.partition("/")
+    if not path and ":" not in hostport:
+        # bare host/IP → default SoftAP/ESP port
+        value = f"{value.rstrip('/')}:81/"
+    elif not path:
+        value = value.rstrip("/") + "/"
+    elif not value.endswith("/"):
+        value = value + "/"
+
+    return value
+
+
 def ensure_key() -> str:
     key = (os.getenv("MOISE_STATS_KEY") or "").strip()
     env_path = ROOT / ".env"
@@ -91,12 +128,14 @@ def main() -> None:
 
     host = os.getenv("KINO_WS_HOST", "0.0.0.0")
     port = int(os.getenv("KINO_WS_PORT", "8770"))
-    esp_url = os.getenv("ESP_WS_URL", "ws://127.0.0.1:81/")
-    mock_control = os.getenv("MOCK_CONTROL_URL", "http://127.0.0.1:82/go")
+    esp_url = normalize_esp_ws_url(os.getenv("ESP_WS_URL", ""))
+    mock_control = (os.getenv("MOCK_CONTROL_URL") or "").strip()
     try:
         claim_window = float(os.getenv("CLAIM_WINDOW_S", "20"))
     except ValueError:
         claim_window = 20.0
+
+    log.info("ESP_WS_URL → %s", esp_url)
 
     server = StatsServer(
         store,

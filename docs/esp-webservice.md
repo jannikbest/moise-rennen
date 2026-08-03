@@ -7,13 +7,23 @@ Kino never talks to the ESP.
 
 | | |
 |---|---|
-| URL | `ws://moise-rennen.local:81/` |
+| URL | `ws://<host>:81/` |
 | Direction | ESP → clients only (push) |
 | Frames | text, one JSON object per frame |
 | Auth | none |
 
-Reachable under a stable DNS name (`moise-rennen.local`), not by hardcoding an IP.
-How Wi-Fi / SoftAP / mDNS is set up is the controller's business — as long as that URL works for a client on the same network.
+`moise-stats` reads `ESP_WS_URL`. Any of these work:
+
+```bash
+ESP_WS_URL=ws://192.168.4.1:81/       # SoftAP default
+ESP_WS_URL=192.168.4.1                # bare IP → ws://192.168.4.1:81/
+ESP_WS_URL=192.168.1.42:81            # LAN IP + port
+ESP_WS_URL=ws://moise-rennen.local:81/
+ESP_WS_URL=ws://127.0.0.1:81/         # local mock
+```
+
+Bare host/IP without a port gets `:81` and a trailing `/`. `http://` is rewritten to `ws://`.
+How Wi-Fi / SoftAP / mDNS is set up is the controller's business — as long as that address is reachable from the Pi.
 
 ## Snapshot
 
