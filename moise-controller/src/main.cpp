@@ -2,6 +2,7 @@
 #include "config.h"
 #include "mouse.h"
 #include "game.h"
+#include "net.h"
 
 Mouse mouse1(mouse1_pins, "M1");
 Mouse mouse2(mouse2_pins, "M2");
@@ -39,6 +40,7 @@ void setup() {
   mouse1.setup();
   mouse2.setup();
   game.begin(&mouse1, &mouse2);
+  net::begin();
 }
 
 void loop() {
@@ -51,6 +53,8 @@ void loop() {
   mouse1.update();
   mouse2.update();
   game.update();
+
+  net::loop(game);
 
   delay(MAIN_LOOP_DELAY);
 }

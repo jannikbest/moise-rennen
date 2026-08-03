@@ -5,3 +5,13 @@ moise-support/users.json
 
 # Logs
 *.log
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Stats service secrets + venv + DB
+moise-stats/.env
+moise-stats/.venv/
+moise-stats/data/*.enc
+moise-kino/.venv/

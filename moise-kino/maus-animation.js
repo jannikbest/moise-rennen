@@ -1,16 +1,34 @@
 class MausAnimation {
     constructor() {
-        this.padding = 20;
+        this.padding = 28;
         this.availableWidth = 0;
-        this.maxPoints = 15;
+        this.maxPoints = (typeof MOISE_CONFIG !== 'undefined' && MOISE_CONFIG.maxPoints) || 15;
+    }
+
+    setMaxPoints(n) {
+        const next = Math.max(1, Number(n) || 15);
+        if (next === this.maxPoints) return;
+        this.maxPoints = next;
     }
 
     rebuildTracks(lanes) {
         const container = document.getElementById('mausTracks');
         if (!container) return;
         container.innerHTML = '';
+        const labels = (typeof MOISE_CONFIG !== 'undefined' && MOISE_CONFIG.laneLabels) || {};
+        const icon = (typeof MOISE_CONFIG !== 'undefined' && MOISE_CONFIG.mausIcon) || 'maus.png';
+
         (lanes || []).forEach((lane) => {
             const id = lane.id;
+            const row = document.createElement('div');
+            row.className = 'lane-row';
+            row.dataset.maus = String(id);
+
+            const label = document.createElement('div');
+            label.className = 'lane-label';
+            label.id = `laneLabel${id}`;
+            label.textContent = lane.label || labels[id] || `Mouse ${id}`;
+
             const track = document.createElement('div');
             track.className = 'maus-track';
             track.dataset.maus = String(id);
@@ -27,26 +45,17 @@ class MausAnimation {
             const indicator = document.createElement('div');
             indicator.className = 'maus-indicator';
             indicator.id = `mausIndicator${id}`;
-            indicator.innerHTML = `<span class="maus-emoji">🐭</span><span class="maus-points" id="mausPoints${id}">0</span>`;
+            indicator.innerHTML =
+                `<img class="maus-icon" src="${icon}" alt="" draggable="false">` +
+                `<span class="maus-points" id="mausPoints${id}">0</span>`;
 
             track.appendChild(marks);
             track.appendChild(indicator);
-            container.appendChild(track);
+            row.appendChild(label);
+            row.appendChild(track);
+            container.appendChild(row);
         });
         this.measure();
-    }
-
-    rebuildNameBar(lanes) {
-        const bar = document.getElementById('mausNamesBottom');
-        if (!bar) return;
-        bar.innerHTML = '';
-        (lanes || []).forEach((lane) => {
-            const el = document.createElement('div');
-            el.className = 'maus-name-bottom hidden';
-            el.id = `maus${lane.id}-name-container`;
-            el.innerHTML = `<div class="field-label">Maus ${lane.name || lane.id}</div><div id="maus${lane.id}NameValue" class="field-value">-</div>`;
-            bar.appendChild(el);
-        });
     }
 
     measure() {
@@ -56,7 +65,7 @@ class MausAnimation {
         }
     }
 
-    setMausPosition(mausId, points) {
+    setMausPosition(mausId, points, { jump = false } = {}) {
         const indicator = document.getElementById(`mausIndicator${mausId}`);
         const pointsEl = document.getElementById(`mausPoints${mausId}`);
         if (!indicator || !pointsEl) return;
@@ -64,13 +73,27 @@ class MausAnimation {
         const clamped = Math.max(0, Math.min(this.maxPoints, Number(points) || 0));
         const translateX = (clamped / this.maxPoints) * this.availableWidth;
         indicator.style.transform = `translateY(-50%) translateX(${translateX}px)`;
-        pointsEl.textContent = String(clamped);
+        pointsEl.textContent = String(Number(points) || 0);
         this.updateTrackMarks(mausId, clamped);
+        if (jump) {
+            indicator.classList.remove('maus-jump');
+            void indicator.offsetWidth;
+            indicator.classList.add('maus-jump');
+        }
     }
 
-    updateMausPosition(punktzahlen) {
-        Object.keys(punktzahlen || {}).forEach((id) => {
-            this.setMausPosition(id, punktzahlen[id]);
+    updateMausPosition(lanes) {
+        (lanes || []).forEach((lane) => {
+            this.setMausPosition(lane.id, lane.points);
+        });
+    }
+
+    /** Freeze losers where they are; snap winner to the finish line with a jump. */
+    finishPose(lanes, winnerId) {
+        const max = this.maxPoints;
+        (lanes || []).forEach((lane) => {
+            const won = Number(lane.id) === Number(winnerId);
+            this.setMausPosition(lane.id, won ? max : lane.points, { jump: won });
         });
     }
 
@@ -80,6 +103,7 @@ class MausAnimation {
         track.querySelectorAll('.track-mark').forEach((mark) => {
             const n = Number(mark.dataset.mark);
             mark.classList.toggle('active', n === points);
+            mark.classList.toggle('passed', n < points);
         });
     }
 

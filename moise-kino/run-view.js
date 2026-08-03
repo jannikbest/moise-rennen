@@ -1,115 +1,254 @@
-class RunView {
+class KinoView {
     constructor(animation) {
         this.animation = animation;
-        this.lastGameState = null;
-        this.currentMausNamen = {};
+        this.lastState = null;
         this.lanesBuilt = false;
+        this.laneKey = '';
+        this._resizeBound = false;
+        this._lastLanes = [];
+        this._cueTimer = null;
+        this._countingDown = false;
+        this._winHold = false;
+        this._pendingWin = null;
+        this._celebrateTimer = null;
     }
 
-    ensureLanes(data) {
-        const lanes = data.lanes && data.lanes.length ? data.lanes : this._fallbackLanes(data);
-        if (!this.lanesBuilt && lanes.length) {
-            this.animation.rebuildTracks(lanes);
-            this.animation.rebuildNameBar(lanes);
-            this.lanesBuilt = true;
+    update(data) {
+        if (!data || !data.state) return;
+
+        if (data.maxPoints != null) {
+            this.animation.setMaxPoints(data.maxPoints);
+        }
+
+        this.ensureLanes(data.lanes || []);
+        this._lastLanes = data.lanes || [];
+
+        if (data.state !== this.lastState) {
+            const prev = this.lastState;
+            this.lastState = data.state;
+
+            if (data.state === 'race') {
+                this.cancelWinHold();
+                this.showScreen('race');
+                this.animation.resetAllMausPositions();
+                this.startCountdown();
+            } else if (data.state === 'win' && prev === 'race') {
+                this.clearCountdown();
+                this.startWinCelebration(data);
+            } else if (data.state === 'win') {
+                this.cancelWinHold();
+                this.showScreen('win');
+                this.updateWinner(data);
+            } else {
+                this.clearCountdown();
+                this.cancelWinHold();
+                this.showScreen(data.state);
+            }
+        }
+
+        if (data.state === 'race') {
+            if (!this._countingDown) {
+                this.animation.updateMausPosition(data.lanes || []);
+                this.updateClock(data.durationMs);
+            } else {
+                this.animation.resetAllMausPositions();
+                this.updateClock(0);
+            }
+            this.updateLabels(data.lanes || []);
+        } else if (data.state === 'win') {
+            this.updateLabels(data.lanes || []);
+            if (this._winHold) {
+                this._pendingWin = data;
+                this.highlightWinnerLane(data);
+            } else {
+                this.updateWinner(data);
+            }
+        }
+    }
+
+    ensureLanes(lanes) {
+        const key = lanes.map((l) => l.id).join(',');
+        if (this.lanesBuilt && key === this.laneKey) return;
+        if (!lanes.length) return;
+
+        this.animation.rebuildTracks(lanes);
+        this.lanesBuilt = true;
+        this.laneKey = key;
+
+        if (!this._resizeBound) {
+            this._resizeBound = true;
             window.addEventListener('resize', () => this.animation.updatePositionsForResize());
         }
     }
 
-    _fallbackLanes(data) {
-        const pts = data.maus_punktzahlen || {};
-        const ids = Object.keys(pts).map(Number).sort((a, b) => a - b);
-        if (!ids.length) {
-            return [1, 2, 3, 4, 5].map((id) => ({ id, name: String(id) }));
-        }
-        return ids.map((id) => ({ id, name: String(id) }));
-    }
-
-    update(data) {
-        this.ensureLanes(data);
-
-        const guthaben = document.getElementById('guthabenValue');
-        const spiele = document.getElementById('spieleValue');
-        const price = document.getElementById('priceValue');
-        if (guthaben) guthaben.textContent = DataFormatter.formatCurrency(data.guthaben);
-        if (spiele) spiele.textContent = data.gespielte_spiele != null ? data.gespielte_spiele : '-';
-        if (price) price.textContent = DataFormatter.formatCurrency(data.game_price_cent || 100);
-
-        if (data.maus_punktzahlen) {
-            this.animation.updateMausPosition(data.maus_punktzahlen);
-        }
-
-        if (data.maus_namen) {
-            this.currentMausNamen = data.maus_namen;
-            Object.keys(data.maus_namen).forEach((id) => {
-                const box = document.getElementById(`maus${id}-name-container`);
-                const val = document.getElementById(`maus${id}NameValue`);
-                if (box && val && data.maus_namen[id]) {
-                    box.classList.remove('hidden');
-                    val.textContent = data.maus_namen[id];
-                }
-            });
-        }
-
-        if (data.game_state && data.game_state !== this.lastGameState) {
-            this.lastGameState = data.game_state;
-            this._setStatus(data.game_state);
-        }
-
-        if (data.gewonnen && data.game_state === 'finished') {
-            this._updateWinner(data.gewonnen);
-        }
-    }
-
-    _setStatus(status) {
-        const el = document.getElementById('moiseStatusValue');
-        const s = String(status).toLowerCase();
-        if (s === 'ready') {
-            if (el) el.textContent = 'Moise bereit';
-            this._show('ready');
-        } else if (s === 'racing') {
-            if (el) el.textContent = 'Moise unterwegs';
-            this._show('racing');
-            this.animation.resetAllMausPositions();
-        } else if (s === 'finished') {
-            if (el) el.textContent = 'Maus im Ziel!';
-            this._show('finished');
-        } else if (s === 'wait_for_ready' || s === 'wait_for_controller_response') {
-            if (el) el.textContent = 'Moise laufen zurück';
-            this._show('ready');
-        } else if (s === 'error' || s === 'paused') {
-            if (el) el.textContent = status;
-            this._show('ready');
-        } else {
-            if (el) el.textContent = status;
-            this._show('racing');
-        }
-    }
-
-    _show(which) {
-        ['ready', 'racing', 'finished'].forEach((name) => {
-            const el = document.getElementById(`${name}-view`);
-            if (el) el.classList.toggle('hidden', name !== which);
+    updateLabels(lanes) {
+        const defaults = (typeof MOISE_CONFIG !== 'undefined' && MOISE_CONFIG.laneLabels) || {};
+        (lanes || []).forEach((lane) => {
+            const el = document.getElementById(`laneLabel${lane.id}`);
+            if (!el) return;
+            el.textContent = lane.label || defaults[lane.id] || `Mouse ${lane.id}`;
         });
     }
 
-    _updateWinner(gewonnen) {
-        const maus = document.getElementById('winnerMaus');
-        const time = document.getElementById('winnerTime');
-        const playerBox = document.getElementById('winnerPlayer');
-        const playerName = document.getElementById('winnerPlayerName');
-        if (maus) maus.textContent = gewonnen.id || '-';
-        if (time) time.textContent = gewonnen.Zeit ? `${gewonnen.Zeit} ms` : '-';
-        if (playerBox && playerName) {
-            const idMatch = String(gewonnen.id || '').match(/(\d+)/);
-            const id = idMatch ? idMatch[1] : null;
-            const name = id && this.currentMausNamen ? this.currentMausNamen[id] : null;
-            if (name) {
-                playerName.textContent = name;
-                playerBox.classList.remove('hidden');
-            } else {
-                playerBox.classList.add('hidden');
-            }
+    updateClock(ms) {
+        const el = document.getElementById('raceClock');
+        if (!el) return;
+        const sec = Math.max(0, Number(ms) || 0) / 1000;
+        el.textContent = `${sec.toFixed(1)}s`;
+    }
+
+    showScreen(state) {
+        const known = ['offline', 'config', 'homing', 'ready', 'race', 'win', 'error'];
+        const target = known.includes(state) ? state : 'offline';
+        known.forEach((name) => {
+            const el = document.getElementById(`screen-${name}`);
+            if (el) el.classList.toggle('hidden', name !== target);
+        });
+    }
+
+    showOffline() {
+        this.clearCountdown();
+        this.cancelWinHold();
+        this.lastState = 'offline';
+        this.showScreen('offline');
+    }
+
+    startCountdown() {
+        this.clearCountdown();
+        this._countingDown = true;
+        const cue = document.getElementById('raceCue');
+        const text = document.getElementById('raceCueText');
+        if (!cue || !text) {
+            this._countingDown = false;
+            return;
         }
+
+        const steps = [
+            { label: 'Get ready', cls: 'ready', ms: 900 },
+            { label: '3', cls: 'count', ms: 800 },
+            { label: '2', cls: 'count', ms: 800 },
+            { label: '1', cls: 'count', ms: 800 },
+            { label: '🏁', cls: 'go', ms: 900 }
+        ];
+
+        cue.classList.remove('hidden');
+        this.animation.resetAllMausPositions();
+        this.updateClock(0);
+        let i = 0;
+
+        const tick = () => {
+            if (i >= steps.length) {
+                this.clearCountdown();
+                return;
+            }
+            const step = steps[i++];
+            text.className = `race-cue-text ${step.cls}`;
+            text.textContent = step.label;
+            void text.offsetWidth;
+            text.classList.add('pop');
+            this._cueTimer = setTimeout(tick, step.ms);
+        };
+        tick();
+    }
+
+    clearCountdown() {
+        clearTimeout(this._cueTimer);
+        this._cueTimer = null;
+        this._countingDown = false;
+        const cue = document.getElementById('raceCue');
+        if (cue) cue.classList.add('hidden');
+    }
+
+    startWinCelebration(data) {
+        this.cancelWinHold();
+        this._winHold = true;
+        this._pendingWin = data;
+        this.showScreen('race');
+        const winnerId = this.winnerIdOf(data);
+        this.animation.finishPose(data.lanes || this._lastLanes || [], winnerId);
+        this.highlightWinnerLane(data);
+
+        this._celebrateTimer = setTimeout(() => {
+            this._winHold = false;
+            this.clearWinnerHighlight();
+            this.showScreen('win');
+            if (this._pendingWin) this.updateWinner(this._pendingWin);
+            this._pendingWin = null;
+            this._celebrateTimer = null;
+        }, 5000);
+    }
+
+    cancelWinHold() {
+        clearTimeout(this._celebrateTimer);
+        this._celebrateTimer = null;
+        this._winHold = false;
+        this._pendingWin = null;
+        this.clearWinnerHighlight();
+    }
+
+    winnerIdOf(data) {
+        const result = data && data.lastResult;
+        return (result && result.winnerLane) || (data && data.winner) || 0;
+    }
+
+    highlightWinnerLane(data) {
+        const winnerId = this.winnerIdOf(data);
+        document.querySelectorAll('.lane-row').forEach((row) => {
+            const won = String(row.dataset.maus) === String(winnerId);
+            row.classList.toggle('lane-winner', won);
+            let badge = row.querySelector('.lane-win-badge');
+            if (won) {
+                if (!badge) {
+                    badge = document.createElement('div');
+                    badge.className = 'lane-win-badge';
+                    badge.innerHTML = '<span class="lane-win-star">⭐</span><span class="lane-win-cup">🏆</span>';
+                    row.appendChild(badge);
+                }
+            } else if (badge) {
+                badge.remove();
+            }
+        });
+    }
+
+    clearWinnerHighlight() {
+        document.querySelectorAll('.lane-row.lane-winner').forEach((row) => {
+            row.classList.remove('lane-winner');
+            const badge = row.querySelector('.lane-win-badge');
+            if (badge) badge.remove();
+        });
+    }
+
+    updateWinner(data) {
+        const screen = document.getElementById('screen-win');
+        const el = document.getElementById('winnerLabel');
+        const timeEl = document.getElementById('winnerTime');
+        const result = data.lastResult || null;
+        const durationMs = (result && result.durationMs) || data.durationMs;
+        const winnerId = (result && result.winnerLane) || data.winner;
+
+        if (screen) {
+            if (winnerId) screen.dataset.winner = String(winnerId);
+            else delete screen.dataset.winner;
+        }
+
+        if (timeEl) {
+            const sec = Math.max(0, Number(durationMs) || 0) / 1000;
+            timeEl.textContent = durationMs ? `${sec.toFixed(1)} seconds` : '';
+        }
+
+        if (!el) return;
+        if (!winnerId && !(result && result.winner)) {
+            el.textContent = 'No winner';
+            return;
+        }
+
+        if (result && result.winner) {
+            el.textContent = result.winner;
+            return;
+        }
+
+        const defaults = (typeof MOISE_CONFIG !== 'undefined' && MOISE_CONFIG.laneLabels) || {};
+        const lane = (data.lanes || []).find((l) => Number(l.id) === Number(winnerId));
+        el.textContent = (lane && lane.label) || defaults[winnerId] || `Mouse ${winnerId}`;
     }
 }

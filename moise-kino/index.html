@@ -1,172 +1,119 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Moise-Kino</title>
+    <title>Moise Kino</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <nav class="topbar" id="topbar">
-        <div class="topbar-brand">Moise-Rennen</div>
-        <div class="topbar-modes">
-            <button class="mode-btn" data-mode="config" type="button">Konfig</button>
-            <button class="mode-btn" data-mode="debug" type="button">Debug</button>
-            <button class="mode-btn active" data-mode="run" type="button">Run</button>
-        </div>
-        <div class="topbar-status">
-            <span id="connectionStatus" class="status-indicator"><span class="status-dot"></span></span>
-            <span id="systemModeLabel" class="mode-label">run</span>
-        </div>
-    </nav>
+    <div id="connDot" class="conn-dot" title="Connection"></div>
+    <button id="statsBtn" class="stats-btn hidden" type="button">Leaderboard</button>
 
-    <div id="errorBanner" class="error-banner hidden"></div>
+    <section id="screen-offline" class="screen">
+        <div class="screen-card">
+            <div class="screen-emoji">📡</div>
+            <h1>No connection</h1>
+            <p class="screen-sub">Waiting for stats service…</p>
+        </div>
+    </section>
 
-    <div id="passwordModal" class="modal hidden">
-        <div class="modal-card">
-            <h2>Admin-Passwort</h2>
-            <input type="password" id="passwordInput" placeholder="Passwort" autocomplete="off">
-            <div class="modal-actions">
-                <button type="button" id="passwordCancel">Abbrechen</button>
-                <button type="button" id="passwordSubmit" class="primary">OK</button>
+    <section id="screen-config" class="screen hidden">
+        <div class="idle-layout">
+            <div class="idle-main">
+                <div class="screen-card">
+                    <div class="screen-emoji">⚙️</div>
+                    <h1>Setup</h1>
+                    <p class="screen-sub">Machine is being configured</p>
+                </div>
             </div>
-            <p id="passwordError" class="error-text hidden">Falsches Passwort</p>
+            <aside class="stats-pane" data-stats-host></aside>
+        </div>
+    </section>
+
+    <section id="screen-homing" class="screen hidden">
+        <div class="idle-layout">
+            <div class="idle-main">
+                <div class="screen-card">
+                    <img src="moise_1.jpeg" alt="Moise" class="screen-image">
+                    <h1>Mice returning home</h1>
+                    <p class="screen-sub">Ready again in a moment</p>
+                </div>
+            </div>
+            <aside class="stats-pane" data-stats-host></aside>
+        </div>
+    </section>
+
+    <section id="screen-ready" class="screen hidden">
+        <div class="idle-layout">
+            <div class="idle-main">
+                <div class="screen-card">
+                    <img src="moise_2.jpeg" alt="Moise ready" class="screen-image">
+                    <h1>Ready!</h1>
+                    <p class="screen-sub">Press start — the winner can join the leaderboard afterwards</p>
+                </div>
+            </div>
+            <aside class="stats-pane" data-stats-host></aside>
+        </div>
+    </section>
+
+    <section id="screen-race" class="screen hidden">
+        <div class="race-layout">
+            <h1 class="race-title">Moise Race</h1>
+            <div id="raceClock" class="race-clock">0.0s</div>
+            <div class="maus-tracks" id="mausTracks"></div>
+        </div>
+        <div id="raceCue" class="race-cue hidden" aria-live="polite">
+            <div id="raceCueText" class="race-cue-text"></div>
+        </div>
+    </section>
+
+    <section id="screen-win" class="screen hidden">
+        <div class="screen-card winner-card">
+            <img class="winner-maus-icon" src="maus.png" alt="" draggable="false">
+            <h1>Winner!</h1>
+            <div id="winnerLabel" class="winner-label">-</div>
+            <div id="winnerTime" class="winner-time"></div>
+            <div id="claimBox" class="claim-box hidden">
+                <div id="claimCountdown" class="claim-countdown"></div>
+                <p id="claimInvite" class="claim-invite">
+                    Want on the leaderboard and in the big final?
+                    Enter your name and PIN now — remember your PIN!
+                </p>
+                <div id="claimValue" class="claim-value"></div>
+                <p id="claimError" class="claim-error hidden"></p>
+                <div id="claimKeys" class="claim-keys"></div>
+                <div id="claimActions" class="claim-actions"></div>
+                <p id="claimDone" class="claim-done hidden"></p>
+            </div>
+        </div>
+    </section>
+
+    <section id="screen-error" class="screen hidden">
+        <div class="screen-card error-card">
+            <div class="screen-emoji">⚠️</div>
+            <h1>Error</h1>
+            <p class="screen-sub">The machine reported an error</p>
+        </div>
+    </section>
+
+    <button id="simStartBtn" class="sim-start-btn hidden" type="button">▶ Start race</button>
+
+    <div id="statsDetail" class="stats-detail hidden">
+        <div class="stats-detail-card">
+            <button id="statsDetailClose" class="stats-detail-close" type="button" aria-label="Close">×</button>
+            <h2>Leaderboard</h2>
+            <div id="statsDetailBody" class="stats-detail-body"></div>
         </div>
     </div>
-
-    <!-- RUN -->
-    <section id="view-run" class="mode-view">
-        <div class="game-layout">
-            <aside class="game-info">
-                <div class="info-field">
-                    <div class="field-label">Guthaben</div>
-                    <div id="guthabenValue" class="field-value">-</div>
-                </div>
-                <div class="info-field">
-                    <div class="field-label">Ein Spiel kostet</div>
-                    <div id="priceValue" class="field-value">-</div>
-                </div>
-                <div class="info-field">
-                    <div class="field-label">Gespielte Spiele</div>
-                    <div id="spieleValue" class="field-value">-</div>
-                </div>
-                <div class="info-field">
-                    <div class="field-label">Status</div>
-                    <div id="moiseStatusValue" class="field-value">Keine Verbindung</div>
-                </div>
-            </aside>
-
-            <div class="maus-names-bottom" id="mausNamesBottom"></div>
-
-            <div class="game-view">
-                <div id="ready-view" class="game-state-view hidden">
-                    <img id="readyMoiseImage" src="moise_1.jpeg" alt="Moise bereit" class="moise-full-image">
-                </div>
-                <div id="racing-view" class="game-state-view">
-                    <div class="maus-tracks" id="mausTracks"></div>
-                </div>
-                <div id="finished-view" class="game-state-view hidden">
-                    <div class="winner-display">
-                        <h2>Gewonnen!</h2>
-                        <div id="winnerMaus" class="winner-maus">-</div>
-                        <div id="winnerPlayer" class="winner-player hidden">
-                            <span>Spieler:</span>
-                            <span id="winnerPlayerName">-</span>
-                        </div>
-                        <div id="winnerTime" class="winner-time">-</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- CONFIG -->
-    <section id="view-config" class="mode-view hidden">
-        <div class="panel-grid">
-            <div class="panel">
-                <h2>Controller</h2>
-                <div class="panel-actions">
-                    <button type="button" id="btnDiscover" class="primary">Discover</button>
-                </div>
-                <div id="controllerList" class="controller-list"></div>
-                <div id="discoveryList" class="discovery-list"></div>
-            </div>
-
-            <div class="panel">
-                <h2>Bahnen / Mapping</h2>
-                <div id="laneMapping" class="lane-mapping"></div>
-                <button type="button" id="btnSaveConfig" class="primary">Config speichern</button>
-            </div>
-
-            <div class="panel">
-                <h2>Admin / Kasse</h2>
-                <div class="cash-stats" id="cashStats"></div>
-                <div class="credit-actions">
-                    <button type="button" data-credit="100">+1 €</button>
-                    <button type="button" data-credit="200">+2 €</button>
-                    <button type="button" data-credit="500">+5 €</button>
-                </div>
-                <div class="form-row">
-                    <input type="number" id="creditCustom" step="0.5" min="0" placeholder="Betrag €">
-                    <button type="button" id="btnCreditCustom">Aufbuchen</button>
-                </div>
-                <div class="form-row">
-                    <label>Spielpreis €</label>
-                    <input type="number" id="priceInput" step="0.5" min="0.5">
-                    <button type="button" id="btnSetPrice" class="primary">Setzen</button>
-                </div>
-                <p id="gamesEstimate" class="muted"></p>
-                <button type="button" id="btnResetCounters" class="danger">Zähler zurücksetzen</button>
-            </div>
-        </div>
-    </section>
-
-    <!-- DEBUG -->
-    <section id="view-debug" class="mode-view hidden">
-        <div class="panel-grid debug-grid">
-            <div class="panel">
-                <h2>I/O & Motor / LED</h2>
-                <div id="debugLanes" class="debug-lanes"></div>
-                <div class="panel-actions">
-                    <button type="button" id="btnIoStreamOn">IO Stream an</button>
-                    <button type="button" id="btnIoStreamOff">IO Stream aus</button>
-                </div>
-                <div id="ioEventLog" class="event-log"></div>
-            </div>
-
-            <div class="panel serial-panel">
-                <h2>Serial Monitor</h2>
-                <div id="serialStats" class="serial-stats"></div>
-                <label class="checkbox-row">
-                    <input type="checkbox" id="showNoise" checked>
-                    Verworfene Zeilen anzeigen
-                </label>
-                <label class="checkbox-row">
-                    <input type="checkbox" id="rawMode">
-                    Alles roh (Filter-Hinweis)
-                </label>
-                <div id="serialLog" class="serial-log"></div>
-                <div class="form-row">
-                    <select id="serialController"></select>
-                    <input type="text" id="serialCommand" placeholder="Kommando">
-                    <button type="button" id="btnSerialSend" class="primary">Senden</button>
-                </div>
-            </div>
-
-            <div class="panel">
-                <h2>Fehler</h2>
-                <div id="errorList" class="error-list"></div>
-            </div>
-        </div>
-    </section>
 
     <script src="config.js"></script>
     <script src="websocket-client.js"></script>
     <script src="maus-animation.js"></script>
-    <script src="data-formatter.js"></script>
     <script src="run-view.js"></script>
-    <script src="config-view.js"></script>
-    <script src="debug-view.js"></script>
+    <script src="claim-view.js"></script>
+    <script src="stats-view.js"></script>
+    <script src="stats-detail.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

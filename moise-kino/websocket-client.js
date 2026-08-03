@@ -5,6 +5,7 @@ class WebSocketClient {
         this.onMessage = onMessage || (() => {});
         this.onStatus = onStatus || (() => {});
         this.reconnectAttempts = 0;
+        this._url = null;
         this._pending = new Map();
         this._reqSeq = 1;
     }
@@ -15,11 +16,14 @@ class WebSocketClient {
         else if (wsUrl.startsWith('https://')) wsUrl = wsUrl.replace('https://', 'wss://');
         else if (!wsUrl.startsWith('ws://') && !wsUrl.startsWith('wss://')) wsUrl = `ws://${wsUrl}`;
 
+        this._url = wsUrl;
+
         try {
             this.websocket = new WebSocket(wsUrl);
         } catch (e) {
+            this.isConnected = false;
             this.onStatus(false);
-            this.scheduleReconnect(wsUrl);
+            this.scheduleReconnect();
             return;
         }
 
@@ -32,7 +36,7 @@ class WebSocketClient {
         this.websocket.onclose = () => {
             this.isConnected = false;
             this.onStatus(false);
-            this.scheduleReconnect(wsUrl);
+            this.scheduleReconnect();
         };
 
         this.websocket.onerror = () => {
@@ -56,11 +60,11 @@ class WebSocketClient {
         };
     }
 
-    scheduleReconnect(wsUrl) {
+    scheduleReconnect() {
         const max = MOISE_CONFIG.websocket.maxReconnectAttempts;
         if (max >= 0 && this.reconnectAttempts >= max) return;
         this.reconnectAttempts += 1;
-        setTimeout(() => this.connect(wsUrl), MOISE_CONFIG.websocket.reconnectInterval);
+        setTimeout(() => this.connect(this._url), MOISE_CONFIG.websocket.reconnectInterval);
     }
 
     send(obj) {
@@ -71,10 +75,9 @@ class WebSocketClient {
         return Promise.resolve();
     }
 
-    request(action, payload, token) {
+    request(action, payload) {
         const request_id = `r${this._reqSeq++}`;
         const body = Object.assign({ action, request_id }, payload || {});
-        if (token) body.token = token;
         return new Promise((resolve, reject) => {
             const timer = setTimeout(() => {
                 this._pending.delete(request_id);

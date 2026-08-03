@@ -34,7 +34,11 @@ private:
   bool stateJustEntered;
 
   int raceSpeeds[2];
+  int points[2];
   int winner;
+  uint32_t raceId;
+  unsigned long raceStartMs;
+  unsigned long raceDurationMs;
   int controllerId;
   bool ioStreamEnabled;
 
@@ -81,6 +85,14 @@ public:
   void setCommand(String command);
   void update();
   void onInputsUpdated();
+
+  // Snapshot getters for the Kino WebSocket API
+  const char* apiState() const;
+  int getLaneCount() const { return laneCount; }
+  int getPoints(int idx) const;
+  int getWinner() const { return winner; }
+  uint32_t getRaceId() const { return raceId; }
+  unsigned long getRaceDurationMs() const;
 };
 
 #endif

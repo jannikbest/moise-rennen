@@ -9,6 +9,9 @@ Game::Game()
     stateStartTime(0),
     stateJustEntered(true),
     winner(0),
+    raceId(0),
+    raceStartMs(0),
+    raceDurationMs(0),
     controllerId(0),
     ioStreamEnabled(false),
     identifyUntil(0),
@@ -17,6 +20,8 @@ Game::Game()
   lanes[1] = nullptr;
   raceSpeeds[0] = 255;
   raceSpeeds[1] = 255;
+  points[0] = 0;
+  points[1] = 0;
   dbgMotorUntil[0] = 0;
   dbgMotorUntil[1] = 0;
 }
@@ -473,6 +478,12 @@ void Game::handleReady(unsigned long currentTime) {
 
 void Game::handleRace(unsigned long currentTime) {
   if (stateJustEntered) {
+    points[0] = 0;
+    points[1] = 0;
+    winner = 0;
+    raceId++;
+    raceStartMs = currentTime;
+    raceDurationMs = 0;
     for (int i = 0; i < laneCount; i++) {
       if (!lanes[i]) continue;
       lanes[i]->stopBlinking();
@@ -499,16 +510,19 @@ void Game::handleRace(unsigned long currentTime) {
     }
 
     if (lanes[i]->score1RisingEdge()) {
+      points[i] += 1;
       lanes[i]->startScoreDisplay(COLOR_1PT_R, SCORE_DISPLAY_DURATION);
       lanes[i]->addMotorTime(SCORE_1PT_MOTOR_TIME);
       sendLine(String("evt score ") + lane + " 1");
     }
     if (lanes[i]->score2RisingEdge()) {
+      points[i] += 2;
       lanes[i]->startScoreDisplay(COLOR_2PT_R, SCORE_DISPLAY_DURATION);
       lanes[i]->addMotorTime(SCORE_2PT_MOTOR_TIME);
       sendLine(String("evt score ") + lane + " 2");
     }
     if (lanes[i]->score3RisingEdge()) {
+      points[i] += 3;
       lanes[i]->startScoreDisplay(COLOR_3PT_R, SCORE_DISPLAY_DURATION);
       lanes[i]->addMotorTime(SCORE_3PT_MOTOR_TIME);
       sendLine(String("evt score ") + lane + " 3");
@@ -517,8 +531,10 @@ void Game::handleRace(unsigned long currentTime) {
 }
 
 void Game::handleStop(unsigned long currentTime) {
-  (void)currentTime;
   if (stateJustEntered) {
+    if (raceStartMs != 0) {
+      raceDurationMs = currentTime - raceStartMs;
+    }
     stopAllMotors();
     for (int i = 0; i < laneCount; i++) {
       if (!lanes[i]) continue;
@@ -531,6 +547,13 @@ void Game::handleStop(unsigned long currentTime) {
     }
     stateJustEntered = false;
     sendLine("st stop");
+  }
+
+  // Close the loop on its own: winner screen, then back home so the next
+  // group can log in without anyone touching the controller.
+  if (currentTime - stateStartTime >= AUTO_RETURN_DELAY) {
+    changeState(HOMING);
+    sendLine("st homing");
   }
 }
 
@@ -593,4 +616,37 @@ String Game::checkSwitchStates() {
     }
   }
   return "";
+}
+
+const char* Game::apiState() const {
+  if (systemMode != MODE_RUN) return "config";
+  switch (currentState) {
+    case STARTUP:
+    case IO_CHECK:
+    case HOMING:
+      return "homing";
+    case READY:
+      return "ready";
+    case RACE:
+      return "race";
+    case STOP:
+      return "win";
+    case ERROR:
+      return "error";
+    case DEBUG_STATE:
+    default:
+      return "config";
+  }
+}
+
+int Game::getPoints(int idx) const {
+  if (idx < 0 || idx > 1) return 0;
+  return points[idx];
+}
+
+unsigned long Game::getRaceDurationMs() const {
+  if (currentState == RACE && raceStartMs != 0) {
+    return millis() - raceStartMs;
+  }
+  return raceDurationMs;
 }
