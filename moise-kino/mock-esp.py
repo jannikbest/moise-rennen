@@ -103,19 +103,20 @@ async def run_one_race() -> None:
         await asyncio.sleep(3.5)
         race_start = time.time()
 
-        for _ in range(random.randint(10, 20)):
-            lane = random.randint(0, LANE_COUNT - 1)
-            add = random.choice([1, 1, 2, 2, 3])
-            points[lane] = min(MAX_POINTS + 5, points[lane] + add)
+        # Natural 5-lane race: different paces, small score ticks, first past 15 wins
+        speeds = [random.uniform(0.75, 1.25) for _ in range(LANE_COUNT)]
+        speeds[random.randrange(LANE_COUNT)] *= 1.2
+        winner = 0
+        while winner == 0:
+            lane = random.choices(range(LANE_COUNT), weights=speeds, k=1)[0]
+            add = random.choices([1, 2, 3], weights=[55, 35, 10], k=1)[0]
+            points[lane] += add
             await broadcast()
-            await asyncio.sleep(random.uniform(0.35, 0.9))
-            if max(points) >= MAX_POINTS:
-                break
+            await asyncio.sleep(random.uniform(0.28, 0.65))
+            if points[lane] > MAX_POINTS:
+                winner = lane + 1
 
         duration_ms = int((time.time() - race_start) * 1000)
-        best = max(points)
-        contenders = [i + 1 for i, p in enumerate(points) if p == best]
-        winner = random.choice(contenders)
         state = "win"
         await broadcast()
         await asyncio.sleep(6)
