@@ -1,16 +1,24 @@
+# Template — install-autostart.sh rewrites User / WorkingDirectory / ExecStart
+# for the machine where it is run. Do not copy this file by hand on the Pi.
 [Unit]
-Description=Moise Autostart Service
-After=network.target graphical-session.target
-Wants=network.target
+Description=Moise Kino + Stats (kiosk)
+After=network-online.target graphical.target
+Wants=network-online.target
+# Prefer starting once a graphical session exists
+After=graphical-session.target
 
 [Service]
-Type=oneshot
+Type=simple
 User=noi
+Group=noi
 Environment=DISPLAY=:0
+Environment=XAUTHORITY=/home/noi/.Xauthority
 WorkingDirectory=/home/noi/moise-rennen
-ExecStartPre=/bin/sleep 10
-ExecStart=/bin/bash -c 'cd /home/noi/moise-rennen && ./start-moise.sh'
-RemainAfterExit=yes
+ExecStart=/home/noi/moise-rennen/start-moise.sh
+Restart=on-failure
+RestartSec=5
+KillMode=control-group
+TimeoutStopSec=15
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=graphical.target

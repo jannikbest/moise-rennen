@@ -46,11 +46,11 @@ def parse_lane_labels(raw: str) -> dict[int, str]:
 def normalize_esp_ws_url(raw: str, default: str = "ws://127.0.0.1:81/") -> str:
     """Accept full URLs or bare host/IP (optional :port).
 
-    Examples that all become ws://192.168.4.1:81/:
-      ws://192.168.4.1:81/
-      192.168.4.1
-      192.168.4.1:81
-      http://192.168.4.1:81
+    Examples that all become ws://192.168.1.42:81/:
+      ws://192.168.1.42:81/
+      192.168.1.42
+      192.168.1.42:81
+      http://192.168.1.42:81
     """
     value = (raw or "").strip()
     if not value:
@@ -70,7 +70,7 @@ def normalize_esp_ws_url(raw: str, default: str = "ws://127.0.0.1:81/") -> str:
     rest = value.split("://", 1)[1]
     hostport, _, path = rest.partition("/")
     if not path and ":" not in hostport:
-        # bare host/IP → default SoftAP/ESP port
+        # bare host/IP → default ESP WebSocket port
         value = f"{value.rstrip('/')}:81/"
     elif not path:
         value = value.rstrip("/") + "/"
@@ -128,14 +128,18 @@ def main() -> None:
 
     host = os.getenv("KINO_WS_HOST", "0.0.0.0")
     port = int(os.getenv("KINO_WS_PORT", "8770"))
-    esp_url = normalize_esp_ws_url(os.getenv("ESP_WS_URL", ""))
+    raw_esp = (os.getenv("ESP_WS_URL") or "").strip()
+    if not raw_esp or raw_esp.lower() == "auto":
+        preferred_esp: str | None = None
+        log.info("ESP_WS_URL → auto (UDP discovery)")
+    else:
+        preferred_esp = normalize_esp_ws_url(raw_esp)
+        log.info("ESP_WS_URL → %s (discovery fallback on failure)", preferred_esp)
     mock_control = (os.getenv("MOCK_CONTROL_URL") or "").strip()
     try:
         claim_window = float(os.getenv("CLAIM_WINDOW_S", "20"))
     except ValueError:
         claim_window = 20.0
-
-    log.info("ESP_WS_URL → %s", esp_url)
 
     server = StatsServer(
         store,
@@ -150,7 +154,7 @@ def main() -> None:
     async def on_snap(data):
         await server.on_esp_snapshot(data)
 
-    esp = EspClient(esp_url, on_snap)
+    esp = EspClient(on_snap, preferred_url=preferred_esp)
 
     async def amain():
         esp.start()

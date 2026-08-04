@@ -12,18 +12,25 @@ Kino never talks to the ESP.
 | Frames | text, one JSON object per frame |
 | Auth | none |
 
-`moise-stats` reads `ESP_WS_URL`. Any of these work:
+### Addressing / discovery
+
+The controller joins the LAN as Wi‑Fi STA and listens for UDP discovery:
+
+| | |
+|---|---|
+| Probe | UDP broadcast `MOISE?` to port **4210** |
+| Reply | `MOISE 1 <ip> 81` (unicast to the requester) |
+
+`moise-stats` reads `ESP_WS_URL`:
 
 ```bash
-ESP_WS_URL=ws://192.168.4.1:81/       # SoftAP default
-ESP_WS_URL=192.168.4.1                # bare IP → ws://192.168.4.1:81/
-ESP_WS_URL=192.168.1.42:81            # LAN IP + port
+ESP_WS_URL=auto                       # UDP discover (default for production)
+ESP_WS_URL=192.168.1.42               # preferred; falls back to discovery on failure
+ESP_WS_URL=ws://127.0.0.1:81/         # local mock (./dev.sh)
 ESP_WS_URL=ws://moise-rennen.local:81/
-ESP_WS_URL=ws://127.0.0.1:81/         # local mock
 ```
 
-Bare host/IP without a port gets `:81` and a trailing `/`. `http://` is rewritten to `ws://`.
-How Wi-Fi / SoftAP / mDNS is set up is the controller's business — as long as that address is reachable from the Pi.
+Bare host/IP without a port gets `:81` and a trailing `/`. `http://` is rewritten to `ws://`. Empty or `auto` skips a fixed URL and discovers on every connect attempt.
 
 ## Snapshot
 

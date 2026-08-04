@@ -1,22 +1,29 @@
 #include "net.h"
 
 #include <WiFi.h>
+#include <WiFiUdp.h>
 #include <WebSocketsServer.h>
 #include <stdio.h>
 #include <string.h>
 
 #include "config.h"
+#include "wifi_secrets.h"
 
 namespace net {
 
-static const char* AP_SSID = "moise-rennen";
 static const uint16_t WS_PORT = 81;
+static const uint16_t DISCOVER_PORT = 4210;
 static const unsigned long HEARTBEAT_MS = 1000;
+static const unsigned long WIFI_RETRY_MS = 5000;
 static const int MAX_POINTS = 15;
+static const char* DISCOVER_PROBE = "MOISE?";
 
 static WebSocketsServer server(WS_PORT);
+static WiFiUDP udp;
+static bool udpReady = false;
 static uint32_t seq = 0;
 static unsigned long lastPushMs = 0;
+static unsigned long lastWifiAttemptMs = 0;
 
 static char lastState[16] = "";
 static int lastPoints[2] = {-1, -1};
@@ -41,9 +48,68 @@ static void onEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length)
   }
 }
 
+static void ensureWifi() {
+  if (WiFi.status() == WL_CONNECTED) {
+    return;
+  }
+  const unsigned long now = millis();
+  if (lastWifiAttemptMs != 0 && (now - lastWifiAttemptMs) < WIFI_RETRY_MS) {
+    return;
+  }
+  lastWifiAttemptMs = now;
+  Serial.printf("WiFi connecting to %s…\n", WIFI_SSID);
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+}
+
+static void ensureUdp() {
+  if (udpReady || WiFi.status() != WL_CONNECTED) {
+    return;
+  }
+  if (udp.begin(DISCOVER_PORT)) {
+    udpReady = true;
+    Serial.printf("UDP discovery on :%u  IP %s\n", DISCOVER_PORT, WiFi.localIP().toString().c_str());
+  }
+}
+
+static void pollDiscover() {
+  if (!udpReady) {
+    return;
+  }
+  const int packetSize = udp.parsePacket();
+  if (packetSize <= 0) {
+    return;
+  }
+
+  char buf[32];
+  const int n = udp.read(buf, sizeof(buf) - 1);
+  if (n <= 0) {
+    return;
+  }
+  buf[n] = '\0';
+  // Accept "MOISE?" with optional trailing whitespace/newline
+  if (strncmp(buf, DISCOVER_PROBE, strlen(DISCOVER_PROBE)) != 0) {
+    return;
+  }
+
+  IPAddress ip = WiFi.localIP();
+  char reply[64];
+  snprintf(
+    reply, sizeof(reply),
+    "MOISE 1 %u.%u.%u.%u %u",
+    ip[0], ip[1], ip[2], ip[3],
+    (unsigned)WS_PORT
+  );
+
+  udp.beginPacket(udp.remoteIP(), udp.remotePort());
+  udp.write(reinterpret_cast<const uint8_t*>(reply), strlen(reply));
+  udp.endPacket();
+}
+
 void begin() {
-  WiFi.mode(WIFI_AP);
-  WiFi.softAP(AP_SSID);  // open SoftAP, fixed IP 192.168.4.1
+  WiFi.mode(WIFI_STA);
+  WiFi.setHostname("moise-rennen");
+  ensureWifi();
+
   server.begin();
   server.onEvent(onEvent);
 }
@@ -97,6 +163,17 @@ static void buildAndBroadcast(Game& game) {
 }
 
 void loop(Game& game) {
+  ensureWifi();
+  if (WiFi.status() != WL_CONNECTED) {
+    if (udpReady) {
+      udp.stop();
+      udpReady = false;
+    }
+    return;
+  }
+  ensureUdp();
+  pollDiscover();
+
   server.loop();
 
   const char* state = game.apiState();

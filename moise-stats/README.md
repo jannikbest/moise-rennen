@@ -17,11 +17,14 @@ cp .env.example .env   # key is auto-generated on first run if empty
 .venv/bin/python main.py
 ```
 
-See `docs/kino-api.md`.
+`ESP_WS_URL=auto` (default) finds the controller via UDP (`MOISE?` on port 4210).
+A fixed URL/IP is tried first and falls back to discovery on failure.
+
+See `docs/kino-api.md` and `docs/esp-webservice.md`.
 
 ```bash
 ./dev.sh   # mock ESP + stats + Kino (macOS / Linux)
-./run.sh   # real ESP (set ESP_WS_URL in .env), no mock
+./run.sh   # real ESP (ESP_WS_URL in .env), no mock
 .\dev.ps1  # same on Windows PowerShell
 .\run.ps1
 ```

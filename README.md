@@ -170,10 +170,36 @@ If execution is blocked: `powershell -ExecutionPolicy Bypass -File .\dev.ps1`
 
 Kino is served at `http://127.0.0.1:8080` (classic `<script>` tags, no bundler).
 
+## Raspberry Pi (Kino + Stats)
+
+On the Pi (Raspberry Pi OS with desktop):
+
+```bash
+# one-time: packages, venv, .env — optional --autostart
+./setup-pi.sh
+./setup-pi.sh --autostart
+
+# set ESP addressing (auto = UDP discovery on the LAN)
+nano moise-stats/.env   # ESP_WS_URL=auto
+
+# start now
+./start-moise.sh        # stats + Kino + Chromium kiosk
+# or without browser:
+./run.sh
+```
+
+Autostart (systemd, detects current user + repo path):
+
+```bash
+./install-autostart.sh install   # enable + persist across reboot
+./install-autostart.sh start     # start now
+./install-autostart.sh status
+./install-autostart.sh stop
+./install-autostart.sh uninstall
+```
+
+Logs: `journalctl -u moise-autostart.service -f`
+
 ## Timing / debounce (do not casually change)
 
 On the ESP32, `MAIN_LOOP_DELAY 10` **is** the debounce. Edge detection has no separate software debounce. Also leave alone: 2 s score grace at race start, score motor times, LED intervals, pull-up/pull-down polarity.
-
-## Autostart
-
-See `install-autostart.sh` and `moise-autostart.service` (user `noi`, path `/home/noi/moise-rennen`).

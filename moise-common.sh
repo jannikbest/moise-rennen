@@ -68,3 +68,21 @@ moise_find_browser() {
   done
   return 1
 }
+
+# Wait until X11/Wayland socket is up (Pi autostart races the desktop).
+moise_wait_for_display() {
+  local max="${1:-60}"
+  local i
+  export DISPLAY="${DISPLAY:-:0}"
+  for i in $(seq 1 "$max"); do
+    if [ -S "/tmp/.X11-unix/X${DISPLAY#:}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
+      return 0
+    fi
+    # xdpyinfo is optional; ignore if missing
+    if command -v xdpyinfo >/dev/null 2>&1 && xdpyinfo -display "$DISPLAY" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 1
+  done
+  return 1
+}

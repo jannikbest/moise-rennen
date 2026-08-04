@@ -6,6 +6,7 @@ from __future__ import annotations
 import asyncio
 import json
 import random
+import socket
 import time
 from typing import Optional, Set
 
@@ -16,6 +17,7 @@ from websockets.server import WebSocketServerProtocol
 HOST = "0.0.0.0"
 WS_PORT = 81
 HTTP_PORT = 82
+DISCOVER_PORT = 4210
 MAX_POINTS = 15
 LANE_COUNT = 5
 HEARTBEAT_S = 1.0
@@ -167,6 +169,36 @@ async def http_options(_: web.Request) -> web.Response:
     return _cors(web.Response())
 
 
+async def discovery_responder() -> None:
+    """Answer LAN UDP probes so stats can find this mock (ESP_WS_URL=auto)."""
+    loop = asyncio.get_running_loop()
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    sock.bind(("", DISCOVER_PORT))
+    sock.setblocking(False)
+
+    def _on_readable() -> None:
+        try:
+            while True:
+                data, addr = sock.recvfrom(64)
+                text = data.decode("ascii", errors="ignore").strip()
+                if not text.startswith("MOISE?"):
+                    continue
+                reply = f"MOISE 1 127.0.0.1 {WS_PORT}".encode("ascii")
+                sock.sendto(reply, addr)
+        except BlockingIOError:
+            return
+        except OSError:
+            return
+
+    loop.add_reader(sock.fileno(), _on_readable)
+    try:
+        await asyncio.Future()  # run forever
+    finally:
+        loop.remove_reader(sock.fileno())
+        sock.close()
+
+
 async def main() -> None:
     global go_event
     go_event = asyncio.Event()
@@ -183,10 +215,11 @@ async def main() -> None:
 
     print(f"Mock ESP WS   ws://localhost:{WS_PORT}/")
     print(f"Mock control  http://localhost:{HTTP_PORT}/go  (GET/POST starts one race)")
+    print(f"UDP discover  :{DISCOVER_PORT}  (probe MOISE?)")
     print("Waiting in ready — press the Kino test button or curl /go")
 
     async with websockets.serve(handler, HOST, WS_PORT):
-        await asyncio.gather(race_controller(), heartbeat())
+        await asyncio.gather(race_controller(), heartbeat(), discovery_responder())
 
 
 if __name__ == "__main__":

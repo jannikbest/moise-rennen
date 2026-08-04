@@ -30,7 +30,7 @@ PIDS+=($!)
 PIDS+=($!)
 
 echo "Stats: ws://0.0.0.0:8770/"
-echo "ESP:   ESP_WS_URL from moise-stats/.env (IP or host, e.g. 192.168.4.1)"
+echo "ESP:   ESP_WS_URL from moise-stats/.env (auto = UDP discover, or fixed IP)"
 echo "Kino:  http://127.0.0.1:8080"
 echo "Ctrl+C stops all."
 

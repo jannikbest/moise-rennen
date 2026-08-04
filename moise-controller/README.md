@@ -5,11 +5,14 @@ One ESP32 drives 1–2 lanes (motors, NeoPixels, home/win/score switches).
 ## Build / flash
 
 ```bash
+cp wifi_secrets.h.example wifi_secrets.h   # set WIFI_SSID / WIFI_PASSWORD
 pio run -t upload
 pio device monitor
 ```
 
-Single binary for all boards. Identity (`id`, `lanes`) is stored in NVS and set from the Kino Konfig UI (or serial: `id 1`, `lanes 2`).
+`wifi_secrets.h` is gitignored. The board joins your LAN as STA (`moise-rennen` hostname) and serves the race WebSocket on port **81**.
+
+UDP discovery: answers `MOISE?` on port **4210** with `MOISE 1 <ip> 81` so `moise-stats` can find it (`ESP_WS_URL=auto`).
 
 ## Runtime modes
 
@@ -23,4 +26,4 @@ Do **not** change `MAIN_LOOP_DELAY`, score grace (2 s), motor times, or pull-up/
 
 ## Protocol
 
-See root [README.md](../README.md) — Serial protocol v2 (`#`-prefixed lines, `#rdy` boot banner).
+See root [README.md](../README.md) and [docs/esp-webservice.md](../docs/esp-webservice.md).
