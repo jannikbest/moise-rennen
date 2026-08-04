@@ -1,6 +1,6 @@
 class MausAnimation {
     constructor() {
-        this.padding = 28;
+        this.padding = 36;
         this.availableWidth = 0;
         this.maxPoints = (typeof MOISE_CONFIG !== 'undefined' && MOISE_CONFIG.maxPoints) || 15;
     }

@@ -11,7 +11,13 @@
         <span class="conn-dot" aria-hidden="true"></span>
         <span id="connBadgeText">Connecting…</span>
     </div>
-    <button id="statsBtn" class="stats-btn hidden" type="button">Leaderboard</button>
+    <button id="statsBtn" class="stats-btn hidden" type="button" aria-label="Open leaderboard">
+        <img class="stats-btn-icon" src="icon-trophy.png" alt="" draggable="false">
+        <span class="stats-btn-copy">
+            <span class="stats-btn-title">Leaderboard</span>
+            <span class="stats-btn-hint">Tap to open</span>
+        </span>
+    </button>
 
     <section id="screen-offline" class="screen">
         <div class="screen-card">
@@ -62,8 +68,10 @@
 
     <section id="screen-race" class="screen hidden">
         <div class="race-layout">
-            <h1 class="race-title">Moise Race</h1>
-            <div id="raceClock" class="race-clock">0.0s</div>
+            <header class="race-header">
+                <span class="race-live">Live</span>
+                <div id="raceClock" class="race-clock">0.0s</div>
+            </header>
             <div class="maus-tracks" id="mausTracks"></div>
         </div>
         <div id="raceCue" class="race-cue hidden" aria-live="polite">
