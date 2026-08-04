@@ -201,7 +201,9 @@ class KinoView {
                 if (!badge) {
                     badge = document.createElement('div');
                     badge.className = 'lane-win-badge';
-                    badge.innerHTML = '<span class="lane-win-star">⭐</span><span class="lane-win-cup">🏆</span>';
+                    badge.innerHTML =
+                        '<img class="lane-win-star" src="icon-star.png" alt="" draggable="false">' +
+                        '<img class="lane-win-cup" src="icon-trophy.png" alt="" draggable="false">';
                     row.appendChild(badge);
                 }
             } else if (badge) {

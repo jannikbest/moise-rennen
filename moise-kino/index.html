@@ -7,12 +7,15 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div id="connDot" class="conn-dot" title="Connection"></div>
+    <div id="connBadge" class="conn-badge" title="Controller connection">
+        <span class="conn-dot" aria-hidden="true"></span>
+        <span id="connBadgeText">Connecting…</span>
+    </div>
     <button id="statsBtn" class="stats-btn hidden" type="button">Leaderboard</button>
 
     <section id="screen-offline" class="screen">
         <div class="screen-card">
-            <div class="screen-emoji">📡</div>
+            <img class="screen-emoji" src="icon-signal.png" alt="" draggable="false">
             <h1>No connection</h1>
             <p class="screen-sub">Waiting for stats service…</p>
         </div>
@@ -22,7 +25,7 @@
         <div class="idle-layout">
             <div class="idle-main">
                 <div class="screen-card">
-                    <div class="screen-emoji">⚙️</div>
+                    <img class="screen-emoji" src="icon-gear.png" alt="" draggable="false">
                     <h1>Setup</h1>
                     <p class="screen-sub">Machine is being configured</p>
                 </div>
@@ -91,13 +94,11 @@
 
     <section id="screen-error" class="screen hidden">
         <div class="screen-card error-card">
-            <div class="screen-emoji">⚠️</div>
+            <img class="screen-emoji" src="icon-warning.png" alt="" draggable="false">
             <h1>Error</h1>
             <p class="screen-sub">The machine reported an error</p>
         </div>
     </section>
-
-    <button id="simStartBtn" class="sim-start-btn hidden" type="button">▶ Start race</button>
 
     <div id="statsDetail" class="stats-detail hidden">
         <div class="stats-detail-card">
