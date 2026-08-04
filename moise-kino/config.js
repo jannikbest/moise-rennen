@@ -16,7 +16,5 @@ const MOISE_CONFIG = {
         5: 'Koky'
     },
     statsRotateMs: 8000,
-    statsDetailIdleMs: 60000,
-    // Show "Start race" when stats reports testMode (mock ESP)
-    testMode: true
+    statsDetailIdleMs: 60000
 };

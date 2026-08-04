@@ -155,6 +155,7 @@ def main() -> None:
         await server.on_esp_snapshot(data)
 
     esp = EspClient(on_snap, preferred_url=preferred_esp)
+    server.esp_client = esp
 
     async def amain():
         esp.start()

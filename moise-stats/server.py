@@ -8,6 +8,7 @@ import logging
 import time
 from collections import defaultdict, deque
 from typing import Any, Deque, Dict, Optional, Set
+from urllib.parse import urlparse
 
 import websockets
 from websockets.server import WebSocketServerProtocol
@@ -66,6 +67,7 @@ class StatsServer:
         self.last_snapshot_at = 0.0
         self._last_broadcast: Optional[str] = None
         self._fail_log: Dict[str, Deque[float]] = defaultdict(deque)
+        self.esp_client: Any = None
 
         self.recorder = Recorder(
             store=store,
@@ -129,6 +131,14 @@ class StatsServer:
         if wins:
             parts.append(f"{wins} win" if wins == 1 else f"{wins} wins")
         return " · ".join(parts)
+
+    def _esp_host(self) -> str:
+        url = ""
+        if self.esp_client is not None:
+            url = getattr(self.esp_client, "url", "") or ""
+        if not url:
+            return ""
+        return urlparse(url).hostname or ""
 
     def _esp_stale(self) -> bool:
         return (time.time() - self.last_snapshot_at) > ESP_STALE_S
@@ -280,6 +290,8 @@ class StatsServer:
             ),
             "lanes": lanes_out,
             "espConnected": self.phase != "offline",
+            "espName": "moise-rennen",
+            "espHost": self._esp_host(),
         }
         if self.phase in ("idle", "offline"):
             payload["stats"] = self.stats.snapshot
