@@ -40,7 +40,7 @@ if ! command -v apt-get >/dev/null 2>&1; then
 fi
 
 echo "==> System packages"
-PKGS=(python3 python3-venv python3-pip)
+PKGS=(python3 python3-venv python3-pip fonts-noto-color-emoji)
 if [ "$WITH_CHROMIUM" -eq 1 ]; then
   # Bookworm: package is usually "chromium"; older images used chromium-browser
   PKGS+=(chromium)
@@ -49,7 +49,7 @@ sudo apt-get update
 sudo apt-get install -y "${PKGS[@]}" || {
   if [ "$WITH_CHROMIUM" -eq 1 ]; then
     echo "chromium package missing — trying chromium-browser…"
-    sudo apt-get install -y python3 python3-venv python3-pip chromium-browser
+    sudo apt-get install -y python3 python3-venv python3-pip fonts-noto-color-emoji chromium-browser
   else
     exit 1
   fi
