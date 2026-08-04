@@ -8,6 +8,17 @@ ROOT="$(cd "$(dirname "$0")" && pwd)"
 
 moise_ensure_stats_venv "$ROOT"
 
+# Drop leftovers from a previous Ctrl+C that didn't clean up
+for port in 8080 8770; do
+  pids="$(lsof -nP -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null || true)"
+  if [ -n "$pids" ]; then
+    echo "Freeing port $port (pid $pids)"
+    # shellcheck disable=SC2086
+    kill $pids 2>/dev/null || true
+    sleep 0.4
+  fi
+done
+
 # Never expose the mock control button in production
 export MOCK_CONTROL_URL=""
 

@@ -166,7 +166,8 @@ class StatsServer:
 
         if old == "racing" and esp_phase == "result":
             self._open_claim_from_race()
-        elif old == "racing" and esp_phase != "result":
+        elif old == "racing" and esp_phase != "racing":
+            # Left race without a win (idle / offline / error) — not mid-race score ticks.
             log.info("race aborted — nothing recorded")
             self._close_claim()
             self.last_result = None
