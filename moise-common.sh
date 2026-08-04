@@ -66,7 +66,45 @@ moise_find_browser() {
       return 0
     fi
   done
+  # macOS app bundles
+  for b in \
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+    "/Applications/Chromium.app/Contents/MacOS/Chromium" \
+    "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge"; do
+    if [ -x "$b" ]; then
+      echo "$b"
+      return 0
+    fi
+  done
   return 1
+}
+
+# Launch Chromium/Chrome in kiosk mode; echoes PID on success (via stdout last line is awkward —
+# instead append to caller's PIDS by printing the browser path and starting in caller).
+# Usage: moise_open_kiosk <url> → starts browser in background, prints PID to stdout.
+moise_open_kiosk() {
+  local url="${1:-http://127.0.0.1:8080/}"
+  local browser kiosk_dir
+  browser="$(moise_find_browser || true)"
+  if [ -z "$browser" ]; then
+    echo "No Chromium/Chrome found — open $url manually" >&2
+    return 1
+  fi
+  kiosk_dir="${MOISE_KIOSK_PROFILE:-/tmp/moise-chrome-kiosk}"
+  mkdir -p "$kiosk_dir"
+  echo "Starting $browser (kiosk)…" >&2
+  "$browser" \
+    --kiosk \
+    --noerrdialogs \
+    --disable-infobars \
+    --disable-session-crashed-bubble \
+    --disable-restore-session-state \
+    --check-for-update-interval=31536000 \
+    --disable-features=TranslateUI \
+    --autoplay-policy=no-user-gesture-required \
+    --user-data-dir="$kiosk_dir" \
+    "$url" &
+  echo $!
 }
 
 # Wait until X11/Wayland socket is up (Pi autostart races the desktop).

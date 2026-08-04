@@ -155,8 +155,8 @@ macOS / Linux:
 
 ```bash
 ./dev.sh          # mock ESP + stats + Kino (./dev-mac.sh is an alias)
-./run.sh          # production: stats + Kino, real ESP via moise-stats/.env
-./start-moise.sh  # Pi kiosk: same as run.sh + Chromium fullscreen
+./run.sh          # production: stats + Kino + fullscreen browser (real ESP via .env)
+./start-moise.sh  # Pi kiosk: same as run.sh (waits for display on autostart)
 ```
 
 Windows (PowerShell):
@@ -186,6 +186,12 @@ nano moise-stats/.env   # ESP_WS_URL=auto
 ./start-moise.sh        # stats + Kino + Chromium kiosk
 # or without browser:
 ./run.sh
+```
+
+Emoji icons need `fonts-noto-color-emoji` (installed by `./setup-pi.sh`). Already set up Pi:
+
+```bash
+sudo apt-get install -y fonts-noto-color-emoji
 ```
 
 Autostart (systemd, detects current user + repo path):

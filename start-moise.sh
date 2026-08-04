@@ -34,32 +34,11 @@ echo "Starting Kino static server…"
 ) &
 PIDS+=($!)
 
-# Give stats + http.server a moment before opening the browser
 sleep 2
 
-BROWSER="$(moise_find_browser || true)"
-if [ -z "$BROWSER" ]; then
-  echo "No Chromium/Chrome found — open http://127.0.0.1:8080 manually" >&2
-  wait
-  exit 0
+if pid="$(moise_open_kiosk http://127.0.0.1:8080/)"; then
+  PIDS+=("$pid")
 fi
-
-KIOSK_DIR="${MOISE_KIOSK_PROFILE:-/tmp/moise-chrome-kiosk}"
-mkdir -p "$KIOSK_DIR"
-
-echo "Starting $BROWSER (kiosk)…"
-"$BROWSER" \
-  --kiosk \
-  --noerrdialogs \
-  --disable-infobars \
-  --disable-session-crashed-bubble \
-  --disable-restore-session-state \
-  --check-for-update-interval=31536000 \
-  --disable-features=TranslateUI \
-  --autoplay-policy=no-user-gesture-required \
-  --user-data-dir="$KIOSK_DIR" \
-  http://127.0.0.1:8080/ &
-PIDS+=($!)
 
 echo "Stats: ws://127.0.0.1:8770/"
 echo "Kino:  http://127.0.0.1:8080"
