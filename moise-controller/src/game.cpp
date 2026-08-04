@@ -15,15 +15,24 @@ Game::Game()
     controllerId(0),
     ioStreamEnabled(false),
     identifyUntil(0),
-    identifying(false) {
+    identifying(false)
+#if SIM_MODE
+    ,
+    simNextScoreMs(0),
+    simRaceEndMs(0),
+    simBootRacePending(true)
+#endif
+{
   lanes[0] = nullptr;
   lanes[1] = nullptr;
   raceSpeeds[0] = 255;
   raceSpeeds[1] = 255;
-  points[0] = 0;
-  points[1] = 0;
+  for (int i = 0; i < MAX_LANES; i++) points[i] = 0;
   dbgMotorUntil[0] = 0;
   dbgMotorUntil[1] = 0;
+#if SIM_MODE
+  for (int i = 0; i < SIM_LANE_COUNT; i++) simWeights[i] = 100;
+#endif
 }
 
 void Game::begin(Mouse* m1, Mouse* m2) {
@@ -35,6 +44,17 @@ void Game::begin(Mouse* m1, Mouse* m2) {
   if (lanes[0]) lanes[0]->setRaceSpeed(raceSpeeds[0]);
   if (lanes[1]) lanes[1]->setRaceSpeed(raceSpeeds[1]);
 
+#if SIM_MODE
+  if (controllerId == 0) {
+    saveId(1);
+  }
+  systemMode = MODE_RUN;
+  changeState(STARTUP);
+  sendBootBanner();
+  sendLine("st startup");
+  sendLine("mode run");
+  sendLine("sim on");
+#else
   sendBootBanner();
 
   if (controllerId == 0) {
@@ -46,6 +66,7 @@ void Game::begin(Mouse* m1, Mouse* m2) {
     changeState(STARTUP);
     sendLine("st startup");
   }
+#endif
 }
 
 void Game::loadPrefs() {
@@ -53,8 +74,12 @@ void Game::loadPrefs() {
   controllerId = prefs.getInt("id", 0);
   laneCount = prefs.getInt("lanes", 2);
   prefs.end();
+#if SIM_MODE
+  laneCount = SIM_LANE_COUNT;
+#else
   if (laneCount < 1) laneCount = 1;
   if (laneCount > 2) laneCount = 2;
+#endif
 }
 
 void Game::saveId(int id) {
@@ -65,12 +90,17 @@ void Game::saveId(int id) {
 }
 
 void Game::saveLanes(int count) {
+#if SIM_MODE
+  (void)count;
+  laneCount = SIM_LANE_COUNT;
+#else
   if (count < 1) count = 1;
   if (count > 2) count = 2;
   laneCount = count;
   prefs.begin("moise", false);
   prefs.putInt("lanes", laneCount);
   prefs.end();
+#endif
   applyLaneCount();
 }
 
@@ -174,7 +204,7 @@ void Game::setCommand(String command) {
   if (command == "identify") {
     identifying = true;
     identifyUntil = millis() + IDENTIFY_DURATION_MS;
-    for (int i = 0; i < laneCount; i++) {
+    for (int i = 0; i < 2; i++) {
       if (lanes[i]) lanes[i]->startBlinking(0, 255, 255, 150);
     }
     sendLine("st identify");
@@ -201,7 +231,7 @@ void Game::setCommand(String command) {
     changeState(HOMING);
   } else if (command == "lose") {
     stopAllMotors();
-    for (int i = 0; i < laneCount; i++) {
+    for (int i = 0; i < 2; i++) {
       if (!lanes[i]) continue;
       lanes[i]->stopRunningLight();
       lanes[i]->startBlinking(255, 0, 0, WINNER_BLINK_INTERVAL);
@@ -341,7 +371,7 @@ void Game::handleDebugCommand(String command) {
 }
 
 void Game::dumpIo() {
-  for (int i = 0; i < laneCount; i++) {
+  for (int i = 0; i < 2; i++) {
     if (!lanes[i]) continue;
     int lane = i + 1;
     sendLine(String("evt io ") + lane + " home " + (lanes[i]->readHomeSwitch() == LOW ? 1 : 0));
@@ -354,7 +384,7 @@ void Game::dumpIo() {
 
 void Game::streamIoEdges() {
   if (!ioStreamEnabled) return;
-  for (int i = 0; i < laneCount; i++) {
+  for (int i = 0; i < 2; i++) {
     if (!lanes[i]) continue;
     int lane = i + 1;
     if (lanes[i]->homeRisingEdge()) {
@@ -386,7 +416,7 @@ void Game::update() {
 
   if (identifying && currentTime >= identifyUntil) {
     identifying = false;
-    for (int i = 0; i < laneCount; i++) {
+    for (int i = 0; i < 2; i++) {
       if (lanes[i]) {
         lanes[i]->stopBlinking();
         lanes[i]->clearAllLEDs();
@@ -429,6 +459,11 @@ void Game::handleStartup(unsigned long currentTime) {
 
 void Game::handleIOCheck(unsigned long currentTime) {
   (void)currentTime;
+#if SIM_MODE
+  changeState(HOMING);
+  sendLine("st homing");
+  return;
+#endif
   String errorMessage = checkSwitchStates();
   if (errorMessage != "") {
     sendLine(String("err io_check ") + errorMessage);
@@ -442,13 +477,26 @@ void Game::handleIOCheck(unsigned long currentTime) {
 
 void Game::handleHoming(unsigned long currentTime) {
   (void)currentTime;
+#if SIM_MODE
+  // No physical home switches on the bench — snap to ready.
+  for (int i = 0; i < 2; i++) {
+    if (lanes[i]) {
+      lanes[i]->motorStop();
+      lanes[i]->stopBlinking();
+    }
+  }
+  setMouseLEDsWhite();
+  changeState(READY);
+  sendLine("st ready");
+  return;
+#endif
   if (stateJustEntered) {
     startMouseBlinking();
     stateJustEntered = false;
   }
 
   bool allHome = true;
-  for (int i = 0; i < laneCount; i++) {
+  for (int i = 0; i < 2; i++) {
     if (!lanes[i]) continue;
     if (lanes[i]->isHome()) {
       lanes[i]->motorStop();
@@ -459,7 +507,7 @@ void Game::handleHoming(unsigned long currentTime) {
   }
 
   if (allHome) {
-    for (int i = 0; i < laneCount; i++) {
+    for (int i = 0; i < 2; i++) {
       if (lanes[i]) lanes[i]->stopBlinking();
     }
     setMouseLEDsWhite();
@@ -469,36 +517,105 @@ void Game::handleHoming(unsigned long currentTime) {
 }
 
 void Game::handleReady(unsigned long currentTime) {
-  (void)currentTime;
   if (stateJustEntered) {
     sendLine("ready");
     stateJustEntered = false;
   }
+#if SIM_MODE
+  const unsigned long waitMs = simBootRacePending ? SIM_FIRST_RACE_MS : SIM_INTER_RACE_MS;
+  if (currentTime - stateStartTime >= waitMs) {
+    simBootRacePending = false;
+    changeState(RACE);
+  }
+#else
+  (void)currentTime;
+#endif
 }
 
 void Game::handleRace(unsigned long currentTime) {
   if (stateJustEntered) {
-    points[0] = 0;
-    points[1] = 0;
+    for (int i = 0; i < MAX_LANES; i++) points[i] = 0;
     winner = 0;
     raceId++;
     raceStartMs = currentTime;
     raceDurationMs = 0;
-    for (int i = 0; i < laneCount; i++) {
+    for (int i = 0; i < 2; i++) {
       if (!lanes[i]) continue;
       lanes[i]->stopBlinking();
       lanes[i]->startRunningLight();
     }
     stateJustEntered = false;
     sendLine("st racing");
+#if SIM_MODE
+    // Natural paces: one slight favorite, all five lanes compete
+    for (int i = 0; i < SIM_LANE_COUNT; i++) {
+      simWeights[i] = 75 + (int)random(51);
+    }
+    {
+      int fav = (int)random(SIM_LANE_COUNT);
+      simWeights[fav] = (simWeights[fav] * 12) / 10;
+    }
+    simNextScoreMs = currentTime + 2000 + SIM_SCORE_EVERY_MS;
+    simRaceEndMs = currentTime + SIM_RACE_MAX_MS;
+#endif
   }
+
+#if SIM_MODE
+  if (currentTime >= simNextScoreMs && winner == 0) {
+    int total = 0;
+    for (int i = 0; i < SIM_LANE_COUNT; i++) total += simWeights[i];
+    int pick = (int)random(total > 0 ? total : 1);
+    int laneIdx = 0;
+    for (int i = 0; i < SIM_LANE_COUNT; i++) {
+      pick -= simWeights[i];
+      if (pick < 0) {
+        laneIdx = i;
+        break;
+      }
+    }
+    // Prefer smaller ticks so races stay close
+    int roll = (int)random(100);
+    int add = (roll < 55) ? 1 : ((roll < 90) ? 2 : 3);
+    points[laneIdx] += add;
+    int lane = laneIdx + 1;
+    if (laneIdx < 2 && lanes[laneIdx]) {
+      if (add == 1) lanes[laneIdx]->startScoreDisplay(COLOR_1PT_R, SCORE_DISPLAY_DURATION);
+      else if (add == 2) lanes[laneIdx]->startScoreDisplay(COLOR_2PT_R, SCORE_DISPLAY_DURATION);
+      else lanes[laneIdx]->startScoreDisplay(COLOR_3PT_R, SCORE_DISPLAY_DURATION);
+    }
+    sendLine(String("evt score ") + lane + " " + add);
+    simNextScoreMs = currentTime + SIM_SCORE_EVERY_MS + (unsigned long)random(200);
+
+    if (points[laneIdx] > MAX_POINTS) {
+      winner = lane;
+      sendLine(String("evt win ") + winner);
+      changeState(STOP);
+      return;
+    }
+  }
+  // Safety timeout — first past the post by score
+  if (winner == 0 && currentTime >= simRaceEndMs) {
+    int best = points[0];
+    int winIdx = 0;
+    for (int i = 1; i < SIM_LANE_COUNT; i++) {
+      if (points[i] > best) {
+        best = points[i];
+        winIdx = i;
+      }
+    }
+    winner = winIdx + 1;
+    sendLine(String("evt win ") + winner);
+    changeState(STOP);
+  }
+  return;
+#endif
 
   // Keep the 2s score grace period (motor EMI protection)
   if (currentTime - stateStartTime < 2000) {
     return;
   }
 
-  for (int i = 0; i < laneCount; i++) {
+  for (int i = 0; i < 2; i++) {
     if (!lanes[i]) continue;
     int lane = i + 1;
 
@@ -536,7 +653,7 @@ void Game::handleStop(unsigned long currentTime) {
       raceDurationMs = currentTime - raceStartMs;
     }
     stopAllMotors();
-    for (int i = 0; i < laneCount; i++) {
+    for (int i = 0; i < 2; i++) {
       if (!lanes[i]) continue;
       lanes[i]->stopRunningLight();
       if (winner == (i + 1)) {
@@ -577,25 +694,25 @@ void Game::handleDebug(unsigned long currentTime) {
 }
 
 void Game::setMouseLEDsRed() {
-  for (int i = 0; i < laneCount; i++) {
+  for (int i = 0; i < 2; i++) {
     if (lanes[i]) lanes[i]->setAllLEDs(COLOR_RED_R);
   }
 }
 
 void Game::setMouseLEDsWhite() {
-  for (int i = 0; i < laneCount; i++) {
+  for (int i = 0; i < 2; i++) {
     if (lanes[i]) lanes[i]->setAllLEDs(COLOR_WHITE_R);
   }
 }
 
 void Game::turnOffAllLEDs() {
-  for (int i = 0; i < laneCount; i++) {
+  for (int i = 0; i < 2; i++) {
     if (lanes[i]) lanes[i]->clearAllLEDs();
   }
 }
 
 void Game::startMouseBlinking() {
-  for (int i = 0; i < laneCount; i++) {
+  for (int i = 0; i < 2; i++) {
     if (lanes[i]) lanes[i]->startBlinking(COLOR_WHITE_R, HOMING_BLINK_INTERVAL);
   }
 }
@@ -640,7 +757,7 @@ const char* Game::apiState() const {
 }
 
 int Game::getPoints(int idx) const {
-  if (idx < 0 || idx > 1) return 0;
+  if (idx < 0 || idx >= MAX_LANES) return 0;
   return points[idx];
 }
 

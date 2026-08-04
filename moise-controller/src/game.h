@@ -3,6 +3,7 @@
 
 #include <Arduino.h>
 #include <Preferences.h>
+#include "config.h"
 
 class Mouse;
 
@@ -34,7 +35,7 @@ private:
   bool stateJustEntered;
 
   int raceSpeeds[2];
-  int points[2];
+  int points[MAX_LANES];
   int winner;
   uint32_t raceId;
   unsigned long raceStartMs;
@@ -45,6 +46,13 @@ private:
   unsigned long dbgMotorUntil[2];
   unsigned long identifyUntil;
   bool identifying;
+
+#if SIM_MODE
+  unsigned long simNextScoreMs;
+  unsigned long simRaceEndMs;
+  bool simBootRacePending;
+  int simWeights[SIM_LANE_COUNT];
+#endif
 
   Preferences prefs;
 

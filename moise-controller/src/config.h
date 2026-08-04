@@ -1,7 +1,20 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-#define FIRMWARE_VERSION "2.0.0"
+#define FIRMWARE_VERSION "2.1.0-sim"
+
+// Bench / kiosk demo without physical switches: fake scores + auto-restart.
+// Set to 0 for real hardware races.
+#define SIM_MODE 1
+#define SIM_LANE_COUNT 5
+#define SIM_FIRST_RACE_MS 3000
+#define SIM_INTER_RACE_MS 60000
+#define SIM_RACE_MAX_MS 45000
+#define SIM_SCORE_EVERY_MS 450
+
+// Finish line for display; first lane with points > MAX_POINTS wins (SIM).
+#define MAX_POINTS 15
+#define MAX_LANES 5
 
 // ===== GAME TIMING CONSTANTS =====
 // Do not casually change: MAIN_LOOP_DELAY is the debounce sampling rate.
