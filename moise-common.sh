@@ -93,6 +93,7 @@ moise_open_kiosk() {
   kiosk_dir="${MOISE_KIOSK_PROFILE:-/tmp/moise-chrome-kiosk}"
   mkdir -p "$kiosk_dir"
   echo "Starting $browser (kiosk)…" >&2
+  # Pi Chromium often software-composites without these; Mac ignores them harmlessly.
   "$browser" \
     --kiosk \
     --noerrdialogs \
@@ -102,6 +103,11 @@ moise_open_kiosk() {
     --check-for-update-interval=31536000 \
     --disable-features=TranslateUI \
     --autoplay-policy=no-user-gesture-required \
+    --ignore-gpu-blocklist \
+    --enable-gpu-rasterization \
+    --enable-zero-copy \
+    --enable-accelerated-2d-canvas \
+    --use-gl=egl \
     --user-data-dir="$kiosk_dir" \
     "$url" &
   echo $!
