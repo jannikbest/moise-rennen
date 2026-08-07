@@ -11,6 +11,11 @@ class KinoView {
         this._winHold = false;
         this._pendingWin = null;
         this._celebrateTimer = null;
+        this._lastDurationMs = 0;
+        this._clockBaseMs = 0;
+        this._clockBaseAt = 0;
+        this._clockRaf = 0;
+        this._clockText = '';
     }
 
     update(data) {
@@ -22,6 +27,9 @@ class KinoView {
 
         this.ensureLanes(data.lanes || []);
         this._lastLanes = data.lanes || [];
+        if (data.durationMs != null) {
+            this._lastDurationMs = Math.max(0, Number(data.durationMs) || 0);
+        }
 
         if (data.state !== this.lastState) {
             const prev = this.lastState;
@@ -37,11 +45,13 @@ class KinoView {
                 this.startWinCelebration(data);
             } else if (data.state === 'win') {
                 this.cancelWinHold();
+                this.stopClock();
                 this.showScreen('win');
                 this.updateWinner(data);
             } else {
                 this.clearCountdown();
                 this.cancelWinHold();
+                this.stopClock();
                 this.showScreen(data.state);
             }
         }
@@ -49,10 +59,11 @@ class KinoView {
         if (data.state === 'race') {
             if (!this._countingDown) {
                 this.animation.updateMausPosition(data.lanes || []);
-                this.updateClock(data.durationMs);
+                this.syncClock(this._lastDurationMs);
+                this.startClock();
             } else {
-                this.animation.resetAllMausPositions();
-                this.updateClock(0);
+                this.stopClock();
+                this.paintClock(0);
             }
             this.updateLabels(data.lanes || []);
         } else if (data.state === 'win') {
@@ -90,11 +101,33 @@ class KinoView {
         });
     }
 
-    updateClock(ms) {
+    syncClock(ms) {
+        this._clockBaseMs = Math.max(0, Number(ms) || 0);
+        this._clockBaseAt = performance.now();
+        this.paintClock(this._clockBaseMs);
+    }
+
+    startClock() {
+        if (this._clockRaf) return;
+        const tick = () => {
+            this._clockRaf = requestAnimationFrame(tick);
+            this.paintClock(this._clockBaseMs + (performance.now() - this._clockBaseAt));
+        };
+        this._clockRaf = requestAnimationFrame(tick);
+    }
+
+    stopClock() {
+        if (this._clockRaf) cancelAnimationFrame(this._clockRaf);
+        this._clockRaf = 0;
+    }
+
+    paintClock(ms) {
         const el = document.getElementById('raceClock');
         if (!el) return;
-        const sec = Math.max(0, Number(ms) || 0) / 1000;
-        el.textContent = `${sec.toFixed(1)}s`;
+        const text = `${(Math.max(0, Number(ms) || 0) / 1000).toFixed(1)}s`;
+        if (text === this._clockText) return;
+        this._clockText = text;
+        el.textContent = text;
     }
 
     showScreen(state) {
@@ -109,6 +142,7 @@ class KinoView {
     showOffline() {
         this.clearCountdown();
         this.cancelWinHold();
+        this.stopClock();
         this.lastState = 'offline';
         this.showScreen('offline');
     }
@@ -116,6 +150,7 @@ class KinoView {
     startCountdown() {
         this.clearCountdown();
         this._countingDown = true;
+        this.stopClock();
         const cue = document.getElementById('raceCue');
         const text = document.getElementById('raceCueText');
         if (!cue || !text) {
@@ -133,7 +168,7 @@ class KinoView {
 
         cue.classList.remove('hidden');
         this.animation.resetAllMausPositions();
-        this.updateClock(0);
+        this.paintClock(0);
         let i = 0;
 
         const tick = () => {
@@ -152,17 +187,28 @@ class KinoView {
     }
 
     clearCountdown() {
+        const wasCounting = this._countingDown;
         clearTimeout(this._cueTimer);
         this._cueTimer = null;
         this._countingDown = false;
         const cue = document.getElementById('raceCue');
         if (cue) cue.classList.add('hidden');
+        if (wasCounting && this.lastState === 'race') {
+            this.syncClock(this._lastDurationMs);
+            this.startClock();
+        }
     }
 
     startWinCelebration(data) {
         this.cancelWinHold();
         this._winHold = true;
         this._pendingWin = data;
+        const finalMs =
+            (data.lastResult && data.lastResult.durationMs) ||
+            data.durationMs ||
+            this._lastDurationMs;
+        this.stopClock();
+        this.paintClock(finalMs);
         this.showScreen('race');
         const winnerId = this.winnerIdOf(data);
         this.animation.finishPose(data.lanes || this._lastLanes || [], winnerId);

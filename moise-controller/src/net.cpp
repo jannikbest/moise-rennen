@@ -192,13 +192,14 @@ void loop(Game& game) {
     if (game.getPoints(i) != lastPoints[i]) pointsChanged = true;
   }
 
+  // durationMs changes every loop during a race — do not treat it as a
+  // push trigger (heartbeat still refreshes the clock ~1 Hz).
   const bool changed =
     strcmp(state, lastState) != 0 ||
     pointsChanged ||
     winner != lastWinner ||
     lanes != lastLaneCount ||
-    raceId != lastRaceId ||
-    durationMs != lastDurationMs;
+    raceId != lastRaceId;
 
   const bool heartbeat = (millis() - lastPushMs) >= HEARTBEAT_MS;
 
