@@ -3,18 +3,21 @@ class MausAnimation {
         this.padding = 36;
         this.availableWidth = 0;
         this.maxPoints = (typeof MOISE_CONFIG !== 'undefined' && MOISE_CONFIG.maxPoints) || 15;
+        this._lastPoints = Object.create(null);
     }
 
     setMaxPoints(n) {
         const next = Math.max(1, Number(n) || 15);
         if (next === this.maxPoints) return;
         this.maxPoints = next;
+        this._lastPoints = Object.create(null);
     }
 
     rebuildTracks(lanes) {
         const container = document.getElementById('mausTracks');
         if (!container) return;
         container.innerHTML = '';
+        this._lastPoints = Object.create(null);
         const labels = (typeof MOISE_CONFIG !== 'undefined' && MOISE_CONFIG.laneLabels) || {};
         const icon = (typeof MOISE_CONFIG !== 'undefined' && MOISE_CONFIG.mausIcon) || 'maus.png';
 
@@ -65,12 +68,15 @@ class MausAnimation {
         }
     }
 
-    setMausPosition(mausId, points, { jump = false } = {}) {
+    setMausPosition(mausId, points, { jump = false, force = false } = {}) {
         const indicator = document.getElementById(`mausIndicator${mausId}`);
         const pointsEl = document.getElementById(`mausPoints${mausId}`);
         if (!indicator || !pointsEl) return;
         if (!this.availableWidth) this.measure();
         const clamped = Math.max(0, Math.min(this.maxPoints, Number(points) || 0));
+        const key = String(mausId);
+        if (!force && !jump && this._lastPoints[key] === clamped) return;
+        this._lastPoints[key] = clamped;
         const translateX = (clamped / this.maxPoints) * this.availableWidth;
         indicator.style.transform = `translateY(-50%) translateX(${translateX}px)`;
         pointsEl.textContent = String(Number(points) || 0);
@@ -110,15 +116,14 @@ class MausAnimation {
     resetAllMausPositions() {
         document.querySelectorAll('.maus-indicator').forEach((el) => {
             const id = el.id.replace('mausIndicator', '');
-            this.setMausPosition(id, 0);
+            this.setMausPosition(id, 0, { force: true });
         });
     }
 
     updatePositionsForResize() {
         this.measure();
-        document.querySelectorAll('.maus-points').forEach((el) => {
-            const id = el.id.replace('mausPoints', '');
-            this.setMausPosition(id, Number(el.textContent) || 0);
+        Object.keys(this._lastPoints).forEach((id) => {
+            this.setMausPosition(id, this._lastPoints[id], { force: true });
         });
     }
 }
