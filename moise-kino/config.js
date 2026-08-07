@@ -1,7 +1,7 @@
 const MOISE_CONFIG = {
     websocket: {
-        // Stats service (local / Pi). Hardware ESP is upstream of the service.
-        url: 'ws://localhost:8770/',
+        // Same host as the page → works for localhost and hostname.local over LAN.
+        url: `ws://${typeof location !== 'undefined' ? location.hostname : 'localhost'}:8770/`,
         reconnectInterval: 2000,
         maxReconnectAttempts: -1
     },

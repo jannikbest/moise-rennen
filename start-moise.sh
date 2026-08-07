@@ -30,7 +30,7 @@ PIDS+=($!)
 echo "Starting Kino static server…"
 (
   cd "$ROOT/moise-kino"
-  "$(moise_python)" -m http.server 8080 --bind 127.0.0.1
+  "$(moise_python)" -m http.server 8080 --bind 0.0.0.0
 ) &
 PIDS+=($!)
 
@@ -40,6 +40,6 @@ if pid="$(moise_open_kiosk http://127.0.0.1:8080/)"; then
   PIDS+=("$pid")
 fi
 
-echo "Stats: ws://127.0.0.1:8770/"
-echo "Kino:  http://127.0.0.1:8080"
+echo "Stats: ws://0.0.0.0:8770/"
+echo "Kino:  http://0.0.0.0:8080 (local + LAN, e.g. http://<hostname>.local:8080)"
 wait
