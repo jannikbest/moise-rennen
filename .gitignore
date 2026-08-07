@@ -15,3 +15,4 @@ moise-stats/.env
 moise-stats/.venv/
 moise-stats/data/*.enc
 moise-kino/.venv/
+docs/discovery-protocol.txt

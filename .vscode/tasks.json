@@ -1,0 +1,64 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Controller: Build & Flash",
+      "type": "shell",
+      "command": "pio run -t upload",
+      "options": {
+        "cwd": "${workspaceFolder}/moise-controller",
+        "env": {
+          "PATH": "${env:HOME}/.platformio/penv/bin:${env:PATH}"
+        }
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Controller: Monitor",
+      "type": "shell",
+      "command": "pio device monitor",
+      "options": {
+        "cwd": "${workspaceFolder}/moise-controller",
+        "env": {
+          "PATH": "${env:HOME}/.platformio/penv/bin:${env:PATH}"
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": true
+      },
+      "problemMatcher": [],
+      "isBackground": true
+    },
+    {
+      "label": "Controller: Build, Flash & Monitor",
+      "dependsOn": ["Controller: Build & Flash"],
+      "dependsOrder": "sequence",
+      "type": "shell",
+      "command": "pio device monitor",
+      "options": {
+        "cwd": "${workspaceFolder}/moise-controller",
+        "env": {
+          "PATH": "${env:HOME}/.platformio/penv/bin:${env:PATH}"
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": true
+      },
+      "problemMatcher": [],
+      "isBackground": true
+    }
+  ]
+}
