@@ -78,7 +78,7 @@ class MausAnimation {
         if (!force && !jump && this._lastPoints[key] === clamped) return;
         this._lastPoints[key] = clamped;
         const translateX = (clamped / this.maxPoints) * this.availableWidth;
-        indicator.style.transform = `translateY(-50%) translateX(${translateX}px)`;
+        indicator.style.transform = `translateY(-50%) translateX(${-translateX}px)`;
         pointsEl.textContent = String(Number(points) || 0);
         this.updateTrackMarks(mausId, clamped);
         if (jump) {
