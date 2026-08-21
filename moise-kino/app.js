@@ -16,7 +16,7 @@ class MoiseApp {
 
     start() {
         this.ws.connect(MOISE_CONFIG.websocket.url);
-        this.view.showOffline();
+        this.view.showOffline('stats');
         this.updateConnBadge(false);
         setInterval(() => this.checkStale(), 500);
     }
@@ -31,7 +31,7 @@ class MoiseApp {
         if (!badge || !text) return;
 
         if (!wsOk) {
-            badge.classList.remove('connected');
+            badge.classList.remove('connected', 'searching');
             text.textContent = 'Offline';
             return;
         }
@@ -41,21 +41,22 @@ class MoiseApp {
         const name = (data && data.espName) || 'moise-rennen';
         const host = (data && data.espHost) || '';
         badge.classList.toggle('connected', espOk);
+        badge.classList.toggle('searching', !espOk);
         if (espOk) {
             text.textContent = host
                 ? `Connected · ${name} · ${host}`
                 : `Connected · ${name}`;
         } else {
             text.textContent = host
-                ? `No controller · ${host}`
-                : 'No controller';
+                ? `Searching for controller · ${host}`
+                : 'Searching for controller…';
         }
     }
 
     onStatus(ok) {
         if (!ok) {
             this.lastData = null;
-            this.view.showOffline();
+            this.view.showOffline('stats');
             this.lastSeq = -1;
             const statsBtn = document.getElementById('statsBtn');
             if (statsBtn) statsBtn.classList.add('hidden');
@@ -71,7 +72,7 @@ class MoiseApp {
         this.lastData = data;
 
         if (data.phase === 'offline') {
-            this.view.showOffline();
+            this.view.showOffline('controller');
         } else {
             this.view.update(data);
         }
@@ -85,7 +86,7 @@ class MoiseApp {
         if (!this.lastMessageAt) return;
         const age = Date.now() - this.lastMessageAt;
         if (age > (MOISE_CONFIG.staleTimeoutMs || 3000)) {
-            this.view.showOffline();
+            this.view.showOffline(this.ws.isConnected ? 'controller' : 'stats');
             this.lastSeq = -1;
             this.lastMessageAt = 0;
             this.lastData = null;

@@ -139,12 +139,24 @@ class KinoView {
         });
     }
 
-    showOffline() {
+    showOffline(reason) {
         this.clearCountdown();
         this.cancelWinHold();
         this.stopClock();
         this.lastState = 'offline';
         this.showScreen('offline');
+
+        const title = document.querySelector('#screen-offline h1');
+        const sub = document.querySelector('#screen-offline .screen-sub');
+        if (!title || !sub) return;
+
+        if (reason === 'controller') {
+            title.textContent = 'Looking for controller';
+            sub.textContent = 'Scanning the network…';
+        } else {
+            title.textContent = 'No connection';
+            sub.textContent = 'Waiting for stats service…';
+        }
     }
 
     startCountdown() {

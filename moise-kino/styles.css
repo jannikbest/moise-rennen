@@ -97,6 +97,17 @@ html, body {
     box-shadow: 0 0 10px rgba(46, 204, 113, 0.55);
 }
 
+.conn-badge.searching .conn-dot {
+    background: var(--accent);
+    box-shadow: 0 0 10px rgba(241, 196, 15, 0.55);
+    animation: connPulse 1.1s ease-in-out infinite;
+}
+
+@keyframes connPulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.45; transform: scale(0.85); }
+}
+
 .screen {
     position: absolute;
     inset: 0;
